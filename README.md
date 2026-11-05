@@ -1,0 +1,1 @@
+# lootea-inventario

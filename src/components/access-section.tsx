@@ -11,7 +11,7 @@ import {
 } from "@/lib/constants";
 import type { EmailAccessState, SecretPresence, VaultState } from "@/lib/types";
 import { parseSecretPatch } from "@/lib/validators";
-import { ApiError, apiJson } from "./api";
+import { apiJson } from "./api";
 
 type SavedAccess = {
   profile: {
@@ -60,8 +60,6 @@ export function AccessSection({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [phrase, setPhrase] = useState("");
-  const [pendingField, setPendingField] = useState<SecretField | null>(null);
   const ready = vault === "ready";
 
   useEffect(() => {
@@ -83,29 +81,8 @@ export function AccessSection({
         json: { service, field },
       });
       setShown((current) => ({ ...current, [field]: body.value }));
-      setPendingField(null);
-      setPhrase("");
     } catch (caught) {
-      if (caught instanceof ApiError && caught.code === "step_up_required") {
-        setPendingField(field);
-        return;
-      }
       setError(caught instanceof Error ? caught.message : "Não foi possível revelar.");
-    }
-  }
-
-  async function confirmPhrase() {
-    setError(null);
-    setPending(true);
-    try {
-      await apiJson("/api/step-up", { method: "POST", json: { passphrase: phrase } });
-      const field = pendingField;
-      setPhrase("");
-      if (field) await reveal(field);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Não foi possível confirmar.");
-    } finally {
-      setPending(false);
     }
   }
 
@@ -248,41 +225,6 @@ export function AccessSection({
               </div>
             );
           })}
-          {pendingField ? (
-            <div className="inset grid gap-3 p-3">
-              <p className="text-sm font-bold">Confirme a frase de acesso para revelar este dado.</p>
-              <label className="field">
-                <span>Frase de acesso do painel</span>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={phrase}
-                  onChange={(event) => setPhrase(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void confirmPhrase();
-                    }
-                  }}
-                />
-              </label>
-              <div className="flex gap-2">
-                <button className="btn btn-primary" type="button" disabled={pending} onClick={() => void confirmPhrase()}>
-                  {pending ? "Confirmando…" : "Confirmar"}
-                </button>
-                <button
-                  className="btn btn-ghost"
-                  type="button"
-                  onClick={() => {
-                    setPendingField(null);
-                    setPhrase("");
-                  }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          ) : null}
           {message ? (
             <p className="ok" role="status">
               {message}

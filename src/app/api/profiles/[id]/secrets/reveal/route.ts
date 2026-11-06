@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = withRoute(async (request, context) => {
-  await authorize(request, { mutate: true, stepUp: true });
+  await authorize(request, { mutate: true });
   const { id } = await context.params;
   const parsed = parseReveal(await readJson(request));
   if (!parsed.ok) throw new AppError(400, parsed.message);

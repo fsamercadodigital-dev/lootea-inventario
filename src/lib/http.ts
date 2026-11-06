@@ -98,7 +98,7 @@ export function clientIp(request: Request): string {
   return ip.slice(0, 80) || "local";
 }
 
-export async function authorize(request: Request, options: { mutate?: boolean; stepUp?: boolean } = {}): Promise<Session> {
+export async function authorize(request: Request, options: { mutate?: boolean } = {}): Promise<Session> {
   const mutating = options.mutate || (request.method !== "GET" && request.method !== "HEAD");
   if (mutating && !verifyOrigin(request)) throw new AppError(403, "Origem recusada.");
   const session = await getSession(readCookie(request, COOKIE_NAME));
@@ -107,11 +107,6 @@ export async function authorize(request: Request, options: { mutate?: boolean; s
     const token = request.headers.get("x-csrf-token") ?? "";
     if (!token || !secureEqual(token, session.csrfToken)) {
       throw new AppError(403, "Não foi possível confirmar o envio. Atualize a página.");
-    }
-  }
-  if (options.stepUp) {
-    if (!session.stepUpUntil || Date.parse(session.stepUpUntil) <= Date.now()) {
-      throw new AppError(403, "Confirme a frase de acesso para ver este dado.", "step_up_required");
     }
   }
   return session;

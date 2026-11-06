@@ -99,7 +99,6 @@ test("persistência, sessão e cofre", async () => {
   const secretsRoute = await import("../src/app/api/profiles/[id]/secrets/route.ts");
   const revealRoute = await import("../src/app/api/profiles/[id]/secrets/reveal/route.ts");
   const bmsRoute = await import("../src/app/api/bms/route.ts");
-  const stepRoute = await import("../src/app/api/step-up/route.ts");
   const ctx = { params: Promise.resolve({}) };
 
   const anonymous = await inventoryRoute.GET(call("/api/inventory"), ctx);
@@ -162,26 +161,11 @@ test("persistência, sessão e cofre", async () => {
   assert.equal(detail.profile.email.provider, "hotmail");
   assert.equal(detail.profile.email.username, true);
 
-  const revealDenied = await revealRoute.POST(
-    call(`/api/profiles/${profileId}/secrets/reveal`, { method: "POST", ...auth, json: { service: "meta", field: "password" } }),
-    profileCtx,
-  );
-  assert.equal(revealDenied.status, 403);
-  const deniedBody = (await revealDenied.json()) as { code?: string };
-  assert.equal(deniedBody.code, "step_up_required");
-  assert.equal(JSON.stringify(deniedBody).includes(metaPassword), false);
-
   const revealAnon = await revealRoute.POST(
     call(`/api/profiles/${profileId}/secrets/reveal`, { method: "POST", json: { service: "meta", field: "password" } }),
     profileCtx,
   );
   assert.equal(revealAnon.status, 401);
-
-  const badStep = await stepRoute.POST(call("/api/step-up", { method: "POST", ...auth, json: { passphrase: "errada" } }), ctx);
-  assert.equal(badStep.status, 401);
-
-  const stepped = await stepRoute.POST(call("/api/step-up", { method: "POST", ...auth, json: { passphrase } }), ctx);
-  assert.equal(stepped.status, 200);
 
   const revealed = await revealRoute.POST(
     call(`/api/profiles/${profileId}/secrets/reveal`, { method: "POST", ...auth, json: { service: "meta", field: "password" } }),

@@ -30,7 +30,7 @@ export async function api(path: string, options: { method?: string; json?: unkno
     cache: "no-store",
     credentials: "same-origin",
   });
-  if (response.status === 401 && path !== "/api/login" && path !== "/api/step-up") {
+  if (response.status === 401 && path !== "/api/login") {
     window.location.assign("/login");
   }
   return response;

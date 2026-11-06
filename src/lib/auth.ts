@@ -6,7 +6,6 @@ import { qGet, qRun } from "./sql";
 export const COOKIE_NAME = "lootea_session";
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
-const STEP_UP_MS = 5 * 60 * 1000;
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 8;
 
@@ -83,12 +82,12 @@ export async function destroySession(id: string): Promise<void> {
   await qRun("delete from sessions where id = ?", [id]);
 }
 
-async function createSession(stepUpUntil: string | null): Promise<Session> {
+async function createSession(): Promise<Session> {
   const session: Session = {
     id: randomBytes(32).toString("base64url"),
     csrfToken: randomBytes(32).toString("base64url"),
     expiresAt: new Date(Date.now() + SESSION_MS).toISOString(),
-    stepUpUntil,
+    stepUpUntil: null,
   };
   await qRun(
     "insert into sessions (id, csrf_token, expires_at, step_up_until, created_at) values (?, ?, ?, ?, ?)",
@@ -115,14 +114,5 @@ async function assertPassphrase(passphrase: string, ip: string): Promise<void> {
 
 export async function login(passphrase: string, ip: string): Promise<Session> {
   await assertPassphrase(passphrase, ip);
-  return createSession(null);
-}
-
-export async function stepUp(sessionId: string, passphrase: string, ip: string): Promise<Session> {
-  await assertPassphrase(passphrase, ip);
-  const until = new Date(Date.now() + STEP_UP_MS).toISOString();
-  await qRun("update sessions set step_up_until = ? where id = ?", [until, sessionId]);
-  const session = await getSession(sessionId);
-  if (!session) throw new AppError(401, "Sessão expirada. Entre de novo.");
-  return session;
+  return createSession();
 }

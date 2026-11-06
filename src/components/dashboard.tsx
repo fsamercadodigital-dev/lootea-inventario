@@ -12,6 +12,7 @@ import { BmDialog } from "./bm-dialog";
 import { ProfileCreateDialog } from "./profile-create-dialog";
 import { Spark } from "./spark";
 import { StatusSelect } from "./status-select";
+import { useTimedMessage } from "./use-timed-message";
 
 export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToken: string }) {
   setCsrf(csrfToken);
@@ -20,7 +21,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
   const [tab, setTab] = useState<"perfis" | "bms">("perfis");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<Status | "todos">("todos");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useTimedMessage();
   const [error, setError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);

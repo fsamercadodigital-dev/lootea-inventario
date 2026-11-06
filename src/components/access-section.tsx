@@ -12,6 +12,7 @@ import {
 import type { EmailAccessState, SecretPresence, VaultState } from "@/lib/types";
 import { parseSecretPatch } from "@/lib/validators";
 import { apiJson } from "./api";
+import { useTimedMessage } from "./use-timed-message";
 
 type SavedAccess = {
   profile: {
@@ -59,7 +60,7 @@ export function AccessSection({
   const [provider, setProvider] = useState(email?.provider ?? "");
   const [otherLabel, setOtherLabel] = useState(email?.otherLabel ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useTimedMessage();
   const [pending, setPending] = useState(false);
   const ready = vault === "ready";
 

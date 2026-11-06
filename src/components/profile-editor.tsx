@@ -9,6 +9,7 @@ import { parseProfileInput } from "@/lib/validators";
 import { AccessSection } from "./access-section";
 import { ApiError, apiJson, setCsrf } from "./api";
 import { StatusSelect } from "./status-select";
+import { useTimedMessage } from "./use-timed-message";
 
 export function ProfileEditor({
   detail,
@@ -26,7 +27,7 @@ export function ProfileEditor({
   const [profileUrl, setProfileUrl] = useState(detail.profileUrl ?? "");
   const [notes, setNotes] = useState(detail.notes ?? "");
   const [bmIds, setBmIds] = useState(detail.bmIds);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useTimedMessage();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 

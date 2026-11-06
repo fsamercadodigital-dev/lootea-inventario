@@ -249,7 +249,7 @@ export function AccessSection({
             );
           })}
           {pendingField ? (
-            <div className="grid gap-3 rounded-2xl border border-[var(--line)] p-3">
+            <div className="inset grid gap-3 p-3">
               <p className="text-sm font-bold">Confirme a frase de acesso para revelar este dado.</p>
               <label className="field">
                 <span>Frase de acesso do painel</span>

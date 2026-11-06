@@ -167,7 +167,7 @@ export function ProfileCreateDialog({
           onTotp={setMetaTotp}
           onRecovery={setMetaRecovery}
         />
-        <fieldset className="grid gap-3 rounded-2xl border border-[var(--line)] p-3">
+        <fieldset className="inset grid gap-3 p-3">
           <legend className="legend px-1">Acesso do e-mail</legend>
           <p className="hint">Escolha o provedor real: Gmail, Outlook, Hotmail ou outro.</p>
           <label className="field">

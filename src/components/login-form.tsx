@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Spark } from "./spark";
+
 export function LoginForm({ configured }: { configured: boolean }) {
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,10 @@ export function LoginForm({ configured }: { configured: boolean }) {
         <p className="text-xs font-bold tracking-[0.18em] text-[var(--muted)] uppercase">
           FSA Mercado Digital
         </p>
-        <h1 className="mt-2 text-4xl">Lootea</h1>
+        <h1 className="mt-2 flex items-center gap-2 text-4xl">
+          Lootea
+          <Spark />
+        </h1>
         <p className="hint mt-2">Inventário interno de perfis e Business Managers.</p>
         {configured ? (
           <form className="mt-6 grid gap-4" onSubmit={submit} noValidate>

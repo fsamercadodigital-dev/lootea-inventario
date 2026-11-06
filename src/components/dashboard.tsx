@@ -10,6 +10,7 @@ import type { BmPublic, Inventory, ProfilePublic } from "@/lib/types";
 import { apiJson, setCsrf } from "./api";
 import { BmDialog } from "./bm-dialog";
 import { ProfileCreateDialog } from "./profile-create-dialog";
+import { Spark } from "./spark";
 import { StatusSelect } from "./status-select";
 
 export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToken: string }) {
@@ -107,7 +108,10 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold tracking-[0.18em] text-[var(--muted)] uppercase">FSA Mercado Digital</p>
-          <h1 className="text-4xl">Inventário Lootea</h1>
+          <h1 className="flex items-center gap-2 text-4xl">
+            Inventário Lootea
+            <Spark />
+          </h1>
           <p className="hint mt-1">Perfis e BMs cadastrados aqui. O status é manual e não vem da Meta.</p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void logout()}>
@@ -298,7 +302,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
 
 function Empty({ title, text, action, onAction }: { title: string; text: string; action: string; onAction: () => void }) {
   return (
-    <div className="rounded-3xl border border-dashed border-[var(--line)] bg-white/50 px-6 py-14 text-center">
+    <div className="empty px-6 py-14 text-center">
       <h2 className="text-3xl">{title}</h2>
       <p className="hint mx-auto mt-2 max-w-md">{text}</p>
       <button type="button" className="btn btn-primary mt-5" onClick={onAction}>

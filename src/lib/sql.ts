@@ -3,7 +3,7 @@ import { mkdirSync } from "fs";
 import type { Pool, PoolClient } from "pg";
 import path from "path";
 import { AppError } from "./errors";
-import { configuredPassphrase, hashPassphrase } from "./passphrase";
+import { configuredPassphrase, hashPassphrase, verifyPassphrase } from "./passphrase";
 
 export type SqlValue = string | number | bigint | null | Uint8Array;
 export type SqlRow = Record<string, SqlValue | undefined>;
@@ -209,11 +209,17 @@ async function openPool(connectionString: string): Promise<Pool> {
 }
 
 async function ensurePassphrase(runner: Runner): Promise<void> {
-  const existing = await runner.get("select value from app_meta where key = ?", ["passphrase_hash"]);
-  if (typeof existing?.value === "string" && existing.value) return;
   const passphrase = configuredPassphrase();
   if (!passphrase) return;
-  await runner.run("insert into app_meta (key, value) values (?, ?)", ["passphrase_hash", hashPassphrase(passphrase)]);
+  const existing = await runner.get("select value from app_meta where key = ?", ["passphrase_hash"]);
+  const stored = typeof existing?.value === "string" ? existing.value : "";
+  if (stored && verifyPassphrase(passphrase, stored)) return;
+  const hash = hashPassphrase(passphrase);
+  if (existing) {
+    await runner.run("update app_meta set value = ? where key = ?", [hash, "passphrase_hash"]);
+    return;
+  }
+  await runner.run("insert into app_meta (key, value) values (?, ?)", ["passphrase_hash", hash]);
 }
 
 async function init(): Promise<void> {

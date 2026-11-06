@@ -152,11 +152,18 @@ async function emailState(profileId: string): Promise<EmailAccessState> {
 
 async function toDetail(row: SqlRow): Promise<ProfileDetail> {
   const id = text(row.id);
+  const [bmIds, hasAccess, emailUsername, meta, email] = await Promise.all([
+    bmIdsFor(id),
+    hasAnySecret(id),
+    emailUsernameFor(id, nullableText(row.email_username)),
+    presenceFor(id, "meta"),
+    emailState(id),
+  ]);
   return {
-    ...profileFrom(row, await bmIdsFor(id), await hasAnySecret(id), await emailUsernameFor(id, nullableText(row.email_username))),
+    ...profileFrom(row, bmIds, hasAccess, emailUsername),
     vault: vaultStatus(),
-    meta: await presenceFor(id, "meta"),
-    email: await emailState(id),
+    meta,
+    email,
   };
 }
 
@@ -173,6 +180,11 @@ export async function listInventory(): Promise<Inventory> {
     bms: await Promise.all(bmRows.map(async (row) => bmFrom(row, await profileIdsFor(text(row.id))))),
     vault: vaultStatus(),
   };
+}
+
+export async function listBms(): Promise<BmPublic[]> {
+  const bmRows = await qAll("select * from bms order by name");
+  return Promise.all(bmRows.map(async (row) => bmFrom(row, await profileIdsFor(text(row.id)))));
 }
 
 export async function getProfile(id: string): Promise<ProfileDetail | null> {

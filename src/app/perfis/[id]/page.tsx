@@ -1,15 +1,13 @@
 import { notFound } from "next/navigation";
 import { ProfileEditor } from "@/components/profile-editor";
 import { requireUser } from "@/lib/page-session";
-import { getProfile, listInventory } from "@/lib/repository";
+import { getProfile, listBms } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireUser();
-  const { id } = await params;
-  const detail = await getProfile(id);
+  const [session, { id }] = await Promise.all([requireUser(), params]);
+  const [detail, bms] = await Promise.all([getProfile(id), listBms()]);
   if (!detail) notFound();
-  const inventory = await listInventory();
-  return <ProfileEditor detail={detail} bms={inventory.bms} csrfToken={session.csrfToken} />;
+  return <ProfileEditor detail={detail} bms={bms} csrfToken={session.csrfToken} />;
 }

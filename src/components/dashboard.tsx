@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { STATUSES, type Status } from "@/lib/constants";
 import { formatDateTime, profileLabel } from "@/lib/format";
 import { summarize } from "@/lib/summary";
-import type { BmPublic, Inventory, ProfilePublic } from "@/lib/types";
+import type { BmPublic, Inventory, ProfileDetail, ProfilePublic } from "@/lib/types";
 import { apiJson, setCsrf } from "./api";
 import { BmDialog } from "./bm-dialog";
+import { Dialog } from "./dialog";
 import { ProfileCreateDialog } from "./profile-create-dialog";
+import { ProfileEditor, profilePlaceholder } from "./profile-editor";
 import { Spark } from "./spark";
 import { StatusSelect } from "./status-select";
 import { useTimedMessage } from "./use-timed-message";
@@ -26,6 +28,9 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
   const [profileOpen, setProfileOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [editingBm, setEditingBm] = useState<BmPublic | null>(null);
+  const [editingProfile, setEditingProfile] = useState<ProfileDetail | null>(null);
+  const [profileNeedsLoad, setProfileNeedsLoad] = useState(false);
+  const profileCache = useRef(new Map<string, ProfileDetail>());
   const summary = useMemo(() => summarize(data.profiles, data.bms), [data]);
   const needle = query.trim().toLocaleLowerCase("pt-BR");
   const bmsById = useMemo(() => new Map(data.bms.map((bm) => [bm.id, bm])), [data.bms]);
@@ -94,6 +99,38 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     });
     setMessage(editingBm ? "BM atualizada." : "BM cadastrada.");
     setError(null);
+  }
+
+  function rememberProfile(profile: ProfileDetail) {
+    profileCache.current.set(profile.id, profile);
+  }
+
+  function warmProfile(id: string) {
+    router.prefetch(`/perfis/${id}`);
+    if (profileCache.current.has(id)) return;
+    void apiJson<{ profile: ProfileDetail }>(`/api/profiles/${id}`)
+      .then((body) => rememberProfile(body.profile))
+      .catch(() => {});
+  }
+
+  function openProfile(profile: ProfilePublic) {
+    const cached = profileCache.current.get(profile.id);
+    if (cached) {
+      setEditingProfile({ ...cached, ...profile });
+      setProfileNeedsLoad(false);
+      return;
+    }
+    setEditingProfile(profilePlaceholder(profile, data.vault));
+    setProfileNeedsLoad(true);
+  }
+
+  function applyProfile(next: ProfilePublic) {
+    rememberProfile({ ...(profileCache.current.get(next.id) ?? profilePlaceholder(next, data.vault)), ...next });
+    setData((current) => ({
+      ...current,
+      profiles: current.profiles.map((profile) => (profile.id === next.id ? { ...profile, ...next } : profile)),
+    }));
+    setEditingProfile((current) => (current && current.id === next.id ? { ...current, ...next } : current));
   }
 
   async function logout() {
@@ -211,7 +248,17 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
               <article key={profile.id} className="panel grid gap-3 p-4 sm:grid-cols-[1fr_16rem] sm:items-start">
                 <div>
                   <h2 className="text-2xl">
-                    <Link className="underline-offset-4 hover:underline" href={`/perfis/${profile.id}`}>
+                    <Link
+                      className="underline-offset-4 hover:underline"
+                      href={`/perfis/${profile.id}`}
+                      onMouseEnter={() => warmProfile(profile.id)}
+                      onFocus={() => warmProfile(profile.id)}
+                      onClick={(event) => {
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                        event.preventDefault();
+                        openProfile(profile);
+                      }}
+                    >
                       {profileLabel(profile)}
                     </Link>
                   </h2>
@@ -273,6 +320,19 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
         </section>
       )}
 
+      {editingProfile ? (
+        <Dialog open title={profileLabel(editingProfile)} description="Cadastro do perfil no inventário." onClose={() => setEditingProfile(null)}>
+          <ProfileEditor
+            key={editingProfile.id}
+            embedded
+            loadDetail={profileNeedsLoad}
+            detail={editingProfile}
+            bms={data.bms}
+            csrfToken={csrfToken}
+            onUpdated={applyProfile}
+          />
+        </Dialog>
+      ) : null}
       {profileOpen ? (
         <ProfileCreateDialog
           open

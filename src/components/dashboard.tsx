@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Status } from "@/lib/constants";
+import { STATUSES, type Status } from "@/lib/constants";
 import { formatDateTime, profileLabel } from "@/lib/format";
 import { summarize } from "@/lib/summary";
-import type { BmPublic, Inventory, ProfilePublic } from "@/lib/types";
+import type { BmPublic, Inventory, ProfileDetail, ProfilePublic } from "@/lib/types";
 import { apiJson, setCsrf } from "./api";
 import { BmDialog } from "./bm-dialog";
+import { Dialog } from "./dialog";
 import { ProfileCreateDialog } from "./profile-create-dialog";
+import { ProfileEditor, profilePlaceholder } from "./profile-editor";
+import { Spark } from "./spark";
 import { StatusSelect } from "./status-select";
+import { useTimedMessage } from "./use-timed-message";
 
 export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToken: string }) {
   setCsrf(csrfToken);
@@ -19,11 +23,14 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
   const [tab, setTab] = useState<"perfis" | "bms">("perfis");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<Status | "todos">("todos");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useTimedMessage();
   const [error, setError] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [bmOpen, setBmOpen] = useState(false);
   const [editingBm, setEditingBm] = useState<BmPublic | null>(null);
+  const [editingProfile, setEditingProfile] = useState<ProfileDetail | null>(null);
+  const [profileNeedsLoad, setProfileNeedsLoad] = useState(false);
+  const profileCache = useRef(new Map<string, ProfileDetail>());
   const summary = useMemo(() => summarize(data.profiles, data.bms), [data]);
   const needle = query.trim().toLocaleLowerCase("pt-BR");
   const bmsById = useMemo(() => new Map(data.bms.map((bm) => [bm.id, bm])), [data.bms]);
@@ -33,7 +40,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     if (status !== "todos" && profile.status !== status) return false;
     if (!needle) return true;
     const linked = profile.bmIds.map((id) => bmsById.get(id)?.name ?? "").join(" ");
-    const hay = [profileLabel(profile), profile.recordNumber, profile.metaProfileId, profile.responsible, profile.notes, linked]
+    const hay = [profileLabel(profile), profile.emailUsername, profile.metaProfileId, profile.responsible, profile.notes, linked]
       .filter(Boolean)
       .join(" ")
       .toLocaleLowerCase("pt-BR");
@@ -46,8 +53,6 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     const hay = [bm.name, bm.metaBmId, bm.responsible, bm.notes, linked].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
     return hay.includes(needle);
   });
-  const suggested = data.profiles.reduce((max, profile) => Math.max(max, profile.recordNumber), 0) + 1;
-
   async function changeProfileStatus(id: string, next: Status) {
     try {
       const body = await apiJson<{ profile: ProfilePublic }>(`/api/profiles/${id}`, {
@@ -96,6 +101,38 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     setError(null);
   }
 
+  function rememberProfile(profile: ProfileDetail) {
+    profileCache.current.set(profile.id, profile);
+  }
+
+  function warmProfile(id: string) {
+    router.prefetch(`/perfis/${id}`);
+    if (profileCache.current.has(id)) return;
+    void apiJson<{ profile: ProfileDetail }>(`/api/profiles/${id}`)
+      .then((body) => rememberProfile(body.profile))
+      .catch(() => {});
+  }
+
+  function openProfile(profile: ProfilePublic) {
+    const cached = profileCache.current.get(profile.id);
+    if (cached) {
+      setEditingProfile({ ...cached, ...profile });
+      setProfileNeedsLoad(false);
+      return;
+    }
+    setEditingProfile(profilePlaceholder(profile, data.vault));
+    setProfileNeedsLoad(true);
+  }
+
+  function applyProfile(next: ProfilePublic) {
+    rememberProfile({ ...(profileCache.current.get(next.id) ?? profilePlaceholder(next, data.vault)), ...next });
+    setData((current) => ({
+      ...current,
+      profiles: current.profiles.map((profile) => (profile.id === next.id ? { ...profile, ...next } : profile)),
+    }));
+    setEditingProfile((current) => (current && current.id === next.id ? { ...current, ...next } : current));
+  }
+
   async function logout() {
     await apiJson("/api/logout", { method: "POST", json: {} });
     router.push("/login");
@@ -104,11 +141,15 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
 
   return (
     <main className="shell py-6 sm:py-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-[var(--muted)] uppercase">FSA Mercado Digital</p>
-          <h1 className="text-4xl">Inventário Lootea</h1>
-          <p className="hint mt-1">Perfis e BMs cadastrados aqui. O status é manual e não vem da Meta.</p>
+          <h1>
+            <span className="flex items-center gap-2 text-4xl">
+              Lootea
+              <Spark />
+            </span>
+            <span className="mt-1 block text-2xl font-semibold tracking-tight">contingência</span>
+          </h1>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void logout()}>
           Sair
@@ -119,15 +160,13 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
         <article className="panel p-4">
           <h2 className="text-lg">Perfis</h2>
           <p className="mt-2 text-sm leading-6">
-            {summary.profiles.total} no total · {summary.profiles.Ativo} ativos · {summary.profiles.Restrito} restritos ·{" "}
-            {summary.profiles.Offline} offline · {summary.profiles["Em análise"]} em análise · {summary.profiles.incomplete} incompletos
+            {summary.profiles.total} no total · {summary.profiles.Ativo} ativos · {summary.profiles.Restrito} restritos
           </p>
         </article>
         <article className="panel p-4">
           <h2 className="text-lg">BMs</h2>
           <p className="mt-2 text-sm leading-6">
-            {summary.bms.total} no total · {summary.bms.Ativo} ativas · {summary.bms.Restrito} restritas · {summary.bms.Offline} offline ·{" "}
-            {summary.bms["Em análise"]} em análise
+            {summary.bms.total} no total · {summary.bms.Ativo} ativas · {summary.bms.Restrito} restritas
           </p>
         </article>
       </section>
@@ -178,16 +217,17 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_12rem]">
         <label className="field">
           <span>Buscar</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, número, ID ou responsável" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, ID ou notas" />
         </label>
         <label className="field">
           <span>Status</span>
           <select value={status} onChange={(event) => setStatus(event.target.value as Status | "todos")}>
             <option value="todos">Todos</option>
-            <option>Ativo</option>
-            <option>Offline</option>
-            <option>Restrito</option>
-            <option>Em análise</option>
+            {STATUSES.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -207,24 +247,31 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
             profiles.map((profile) => (
               <article key={profile.id} className="panel grid gap-3 p-4 sm:grid-cols-[1fr_16rem] sm:items-start">
                 <div>
-                  <p className="text-xs font-bold tracking-wide text-[var(--muted)] uppercase">Registro {profile.recordNumber}</p>
                   <h2 className="text-2xl">
-                    <Link className="underline-offset-4 hover:underline" href={`/perfis/${profile.id}`}>
+                    <Link
+                      className="underline-offset-4 hover:underline"
+                      href={`/perfis/${profile.id}`}
+                      onMouseEnter={() => warmProfile(profile.id)}
+                      onFocus={() => warmProfile(profile.id)}
+                      onClick={(event) => {
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                        event.preventDefault();
+                        openProfile(profile);
+                      }}
+                    >
                       {profileLabel(profile)}
                     </Link>
                   </h2>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {!profile.displayName?.trim() ? <span className="badge">Dados incompletos</span> : null}
-                    <span className="hint">{profile.hasAccess ? "Acesso informado" : "Acesso pendente"}</span>
-                  </div>
+                  {profile.emailUsername ? <p className="hint mt-2">{profile.emailUsername}</p> : null}
+                  {!profile.displayName?.trim() ? (
+                    <div className="mt-2">
+                      <span className="badge">Dados incompletos</span>
+                    </div>
+                  ) : null}
                   {profile.metaProfileId ? <p className="hint mt-2">ID Meta {profile.metaProfileId}</p> : null}
                   <p className="hint mt-2">Atualizado {formatDateTime(profile.updatedAt)}</p>
                 </div>
-                <StatusSelect
-                  value={profile.status}
-                  label={`Mudar status de ${profileLabel(profile)}`}
-                  onChange={(next) => changeProfileStatus(profile.id, next)}
-                />
+                <StatusSelect value={profile.status} onChange={(next) => changeProfileStatus(profile.id, next)} />
               </article>
             ))
           )}
@@ -266,17 +313,29 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
                     Editar
                   </button>
                 </div>
-                <StatusSelect value={bm.status} label={`Mudar status de ${bm.name}`} onChange={(next) => changeBmStatus(bm.id, next)} />
+                <StatusSelect value={bm.status} onChange={(next) => changeBmStatus(bm.id, next)} />
               </article>
             ))
           )}
         </section>
       )}
 
+      {editingProfile ? (
+        <Dialog open title={profileLabel(editingProfile)} description="Cadastro do perfil no inventário." onClose={() => setEditingProfile(null)}>
+          <ProfileEditor
+            key={editingProfile.id}
+            embedded
+            loadDetail={profileNeedsLoad}
+            detail={editingProfile}
+            bms={data.bms}
+            csrfToken={csrfToken}
+            onUpdated={applyProfile}
+          />
+        </Dialog>
+      ) : null}
       {profileOpen ? (
         <ProfileCreateDialog
           open
-          suggestedNumber={suggested}
           bms={data.bms}
           vault={data.vault}
           onClose={() => setProfileOpen(false)}
@@ -298,7 +357,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
 
 function Empty({ title, text, action, onAction }: { title: string; text: string; action: string; onAction: () => void }) {
   return (
-    <div className="rounded-3xl border border-dashed border-[var(--line)] bg-white/50 px-6 py-14 text-center">
+    <div className="empty px-6 py-14 text-center">
       <h2 className="text-3xl">{title}</h2>
       <p className="hint mx-auto mt-2 max-w-md">{text}</p>
       <button type="button" className="btn btn-primary mt-5" onClick={onAction}>

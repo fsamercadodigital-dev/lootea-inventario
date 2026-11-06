@@ -1,6 +1,21 @@
-export const STATUSES = ["Ativo", "Offline", "Restrito", "Em análise"] as const;
+export const STATUSES = ["Ativo", "Restrito"] as const;
 
 export type Status = (typeof STATUSES)[number];
+
+/** Values saved before these options were removed. Readable, not offered for new choices. */
+export const LEGACY_STATUSES = ["Offline", "Em análise"] as const;
+
+export type LegacyStatus = (typeof LEGACY_STATUSES)[number];
+
+export type StoredStatus = Status | LegacyStatus;
+
+export function isStatus(value: string): value is Status {
+  return (STATUSES as readonly string[]).includes(value);
+}
+
+export function isStoredStatus(value: string): value is StoredStatus {
+  return isStatus(value) || (LEGACY_STATUSES as readonly string[]).includes(value);
+}
 
 export const EMAIL_PROVIDERS = ["gmail", "outlook", "hotmail", "other"] as const;
 

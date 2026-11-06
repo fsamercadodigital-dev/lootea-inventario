@@ -1,4 +1,4 @@
-import type { AccessService, EmailProvider, SecretField, Status } from "./constants";
+import type { AccessService, EmailProvider, SecretField, Status, StoredStatus } from "./constants";
 
 export type SecretPresence = Record<SecretField, boolean>;
 
@@ -8,20 +8,21 @@ export type ProfilePublic = {
   displayName: string | null;
   metaProfileId: string | null;
   profileUrl: string | null;
-  status: Status;
+  status: StoredStatus;
   responsible: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
   bmIds: string[];
   hasAccess: boolean;
+  emailUsername: string | null;
 };
 
 export type BmPublic = {
   id: string;
   name: string;
   metaBmId: string;
-  status: Status;
+  status: StoredStatus;
   responsible: string | null;
   notes: string | null;
   createdAt: string;
@@ -56,7 +57,6 @@ export type EmailDraft = SecretDraft & {
 };
 
 export type ProfileInput = {
-  recordNumber: number;
   displayName: string | null;
   metaProfileId: string | null;
   profileUrl: string | null;
@@ -79,6 +79,10 @@ export type BmInput = {
   notes: string | null;
   profileIds: string[];
 };
+
+export type ProfileUpdate = Omit<ProfileInput, "status"> & { status: StoredStatus };
+
+export type BmUpdate = Omit<BmInput, "status"> & { status: StoredStatus };
 
 export type SecretPatch = {
   service: AccessService;

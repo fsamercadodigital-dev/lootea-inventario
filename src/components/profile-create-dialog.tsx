@@ -2,32 +2,29 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PROVIDER_LABELS, STATUSES, type EmailProvider } from "@/lib/constants";
+import { PROVIDER_LABELS, type EmailProvider, type Status } from "@/lib/constants";
 import type { BmPublic, VaultState } from "@/lib/types";
 import { parseCreateProfile } from "@/lib/validators";
 import { ApiError, apiJson } from "./api";
 import { Dialog } from "./dialog";
+import { StatusSwitch } from "./status-select";
 
 export function ProfileCreateDialog({
   open,
-  suggestedNumber,
   bms,
   vault,
   onClose,
 }: {
   open: boolean;
-  suggestedNumber: number;
   bms: BmPublic[];
   vault: VaultState;
   onClose: () => void;
 }) {
   const router = useRouter();
-  const [recordNumber, setRecordNumber] = useState(String(suggestedNumber));
   const [displayName, setDisplayName] = useState("");
   const [metaProfileId, setMetaProfileId] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("Ativo");
-  const [responsible, setResponsible] = useState("");
+  const [status, setStatus] = useState<Status>("Ativo");
   const [notes, setNotes] = useState("");
   const [bmIds, setBmIds] = useState<string[]>([]);
   const [metaUser, setMetaUser] = useState("");
@@ -52,12 +49,11 @@ export function ProfileCreateDialog({
     event.preventDefault();
     setError(null);
     const parsed = parseCreateProfile({
-      recordNumber,
       displayName,
       metaProfileId,
       profileUrl,
       status,
-      responsible,
+      responsible: null,
       notes,
       bmIds,
       meta: { username: metaUser, password: metaPassword, totp: metaTotp, recovery: metaRecovery },
@@ -104,13 +100,9 @@ export function ProfileCreateDialog({
       <form className="grid gap-4" onSubmit={submit} noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="field">
-            <span>Número do registro</span>
-            <input inputMode="numeric" value={recordNumber} onChange={(event) => setRecordNumber(event.target.value)} />
-          </label>
-          <label className="field">
             <span>Nome</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-            <p className="hint">Se ficar vazio, o painel mostra “Perfil” e o número.</p>
+            <p className="hint">Se ficar vazio, o painel mostra “Sem nome”.</p>
           </label>
           <label className="field">
             <span>ID do perfil na Meta</span>
@@ -120,18 +112,7 @@ export function ProfileCreateDialog({
             <span>Link do perfil</span>
             <input value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder="https://" />
           </label>
-          <label className="field">
-            <span>Status manual</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])}>
-              {STATUSES.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Responsável</span>
-            <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />
-          </label>
+          <StatusSwitch value={status} onChange={setStatus} />
         </div>
         <label className="field">
           <span>Notas</span>
@@ -167,7 +148,7 @@ export function ProfileCreateDialog({
           onTotp={setMetaTotp}
           onRecovery={setMetaRecovery}
         />
-        <fieldset className="grid gap-3 rounded-2xl border border-[var(--line)] p-3">
+        <fieldset className="inset grid gap-3 p-3">
           <legend className="legend px-1">Acesso do e-mail</legend>
           <p className="hint">Escolha o provedor real: Gmail, Outlook, Hotmail ou outro.</p>
           <label className="field">

@@ -1,36 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Status } from "@/lib/constants";
 import { formatDateTime, profileLabel } from "@/lib/format";
-import type { BmPublic, ProfileDetail, ProfilePublic } from "@/lib/types";
+import type { BmPublic, ProfileDetail, ProfilePublic, VaultState } from "@/lib/types";
 import { parseProfileInput } from "@/lib/validators";
 import { AccessSection } from "./access-section";
 import { ApiError, apiJson, setCsrf } from "./api";
 import { StatusSelect } from "./status-select";
+import { useTimedMessage } from "./use-timed-message";
+
+const emptyPresence = { username: false, password: false, totp: false, recovery: false };
+
+export function profilePlaceholder(profile: ProfilePublic, vault: VaultState): ProfileDetail {
+  return {
+    ...profile,
+    vault,
+    meta: { ...emptyPresence },
+    email: { ...emptyPresence, provider: null, otherLabel: null },
+  };
+}
 
 export function ProfileEditor({
   detail,
   bms,
   csrfToken,
+  embedded = false,
+  loadDetail = false,
+  onUpdated,
 }: {
   detail: ProfileDetail;
   bms: BmPublic[];
   csrfToken: string;
+  embedded?: boolean;
+  loadDetail?: boolean;
+  onUpdated?: (profile: ProfilePublic) => void;
 }) {
   setCsrf(csrfToken);
   const [profile, setProfile] = useState(detail);
-  const [recordNumber, setRecordNumber] = useState(String(detail.recordNumber));
   const [displayName, setDisplayName] = useState(detail.displayName ?? "");
   const [metaProfileId, setMetaProfileId] = useState(detail.metaProfileId ?? "");
   const [profileUrl, setProfileUrl] = useState(detail.profileUrl ?? "");
-  const [responsible, setResponsible] = useState(detail.responsible ?? "");
   const [notes, setNotes] = useState(detail.notes ?? "");
   const [bmIds, setBmIds] = useState(detail.bmIds);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useTimedMessage();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const onUpdatedRef = useRef(onUpdated);
+  onUpdatedRef.current = onUpdated;
+
+  useEffect(() => {
+    if (!loadDetail) return;
+    let cancel = false;
+    void apiJson<{ profile: ProfileDetail }>(`/api/profiles/${detail.id}`)
+      .then((body) => {
+        if (cancel) return;
+        setProfile((current) => ({
+          ...current,
+          vault: body.profile.vault,
+          meta: body.profile.meta,
+          email: body.profile.email,
+          hasAccess: body.profile.hasAccess,
+          emailUsername: body.profile.emailUsername,
+          updatedAt: body.profile.updatedAt,
+        }));
+        onUpdatedRef.current?.(body.profile);
+      })
+      .catch(() => {});
+    return () => {
+      cancel = true;
+    };
+  }, [detail.id, loadDetail]);
 
   async function changeStatus(status: Status) {
     try {
@@ -39,6 +80,7 @@ export function ProfileEditor({
         json: { status },
       });
       setProfile((current) => ({ ...current, ...body.profile }));
+      onUpdated?.(body.profile);
       setMessage("Status salvo.");
       setError(null);
     } catch (caught) {
@@ -52,12 +94,11 @@ export function ProfileEditor({
     setError(null);
     setMessage(null);
     const parsed = parseProfileInput({
-      recordNumber,
       displayName,
       metaProfileId,
       profileUrl,
       status: profile.status,
-      responsible,
+      responsible: null,
       notes,
       bmIds,
     });
@@ -72,11 +113,10 @@ export function ProfileEditor({
         json: parsed.value,
       });
       setProfile((current) => ({ ...current, ...body.profile }));
-      setRecordNumber(String(body.profile.recordNumber));
+      onUpdated?.(body.profile);
       setDisplayName(body.profile.displayName ?? "");
       setMetaProfileId(body.profile.metaProfileId ?? "");
       setProfileUrl(body.profile.profileUrl ?? "");
-      setResponsible(body.profile.responsible ?? "");
       setNotes(body.profile.notes ?? "");
       setBmIds(body.profile.bmIds);
       setMessage("Dados salvos.");
@@ -89,22 +129,24 @@ export function ProfileEditor({
 
   const label = profileLabel(profile);
 
-  return (
-    <main className="shell grid gap-4 py-6 sm:py-8">
-      <Link className="text-sm font-bold underline-offset-4 hover:underline" href="/">
-        Voltar aos perfis
-      </Link>
+  const content = (
+    <>
+      {embedded ? null : (
+        <Link className="text-sm font-bold underline-offset-4 hover:underline" href="/">
+          Voltar aos perfis
+        </Link>
+      )}
       <header className="panel grid gap-4 p-5 sm:grid-cols-[1fr_16rem] sm:items-end">
         <div>
-          <p className="text-xs font-bold tracking-wide text-[var(--muted)] uppercase">Registro {profile.recordNumber}</p>
           <h1 className="text-4xl">{label}</h1>
+          {profile.emailUsername ? <p className="hint mt-2">{profile.emailUsername}</p> : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {!profile.displayName?.trim() ? <span className="badge">Dados incompletos</span> : null}
             <p className="hint">Status manual, sem consulta à Meta. Atualizado {formatDateTime(profile.updatedAt)}</p>
           </div>
           <p className="hint mt-2">Abrir este cadastro não cria conta na Meta nem no e-mail.</p>
         </div>
-        <StatusSelect value={profile.status} label={`Mudar status de ${label}`} onChange={changeStatus} />
+        <StatusSelect value={profile.status} onChange={changeStatus} />
       </header>
       {message ? (
         <p className="ok" role="status">
@@ -120,10 +162,6 @@ export function ProfileEditor({
         <h2 className="text-2xl">Dados do perfil</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="field">
-            <span>Número do registro</span>
-            <input inputMode="numeric" value={recordNumber} onChange={(event) => setRecordNumber(event.target.value)} />
-          </label>
-          <label className="field">
             <span>Nome</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
           </label>
@@ -134,10 +172,6 @@ export function ProfileEditor({
           <label className="field">
             <span>Link do perfil</span>
             <input value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder="https://" />
-          </label>
-          <label className="field sm:col-span-2">
-            <span>Responsável</span>
-            <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />
           </label>
         </div>
         <label className="field">
@@ -179,7 +213,10 @@ export function ProfileEditor({
         description="Login, senha e 2FA da conta Meta. Ficam criptografados e ocultos até você revelar."
         presence={profile.meta}
         vault={profile.vault}
-        onSaved={(next) => setProfile((current) => ({ ...current, ...next, meta: next.meta, email: next.email }))}
+        onSaved={(next) => {
+          setProfile((current) => ({ ...current, ...next, meta: next.meta, email: next.email }));
+          onUpdated?.({ ...profile, ...next });
+        }}
       />
       <AccessSection
         profileId={profile.id}
@@ -189,8 +226,14 @@ export function ProfileEditor({
         presence={profile.email}
         email={profile.email}
         vault={profile.vault}
-        onSaved={(next) => setProfile((current) => ({ ...current, ...next, meta: next.meta, email: next.email }))}
+        onSaved={(next) => {
+          setProfile((current) => ({ ...current, ...next, meta: next.meta, email: next.email }));
+          onUpdated?.({ ...profile, ...next });
+        }}
       />
-    </main>
+    </>
   );
+
+  if (embedded) return <div className="grid gap-4">{content}</div>;
+  return <main className="shell grid gap-4 py-6 sm:py-8">{content}</main>;
 }

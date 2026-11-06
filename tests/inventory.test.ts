@@ -71,15 +71,19 @@ test("validadores rejeitam link inseguro e ID numérico", () => {
   const textId = parseBmInput({ name: "BM", metaBmId: bmId, status: "Ativo" });
   assert.equal(textId.ok, true);
   if (textId.ok) assert.equal(textId.value.metaBmId, bmId);
+  assert.equal(parseBmInput({ name: "BM", metaBmId: bmId, status: "Offline" }).ok, false);
+  assert.equal(parseBmInput({ name: "BM", metaBmId: bmId, status: "Em análise" }).ok, false);
+  assert.equal(parseCreateProfile({ status: "Offline" }).ok, false);
+  assert.equal(parseCreateProfile({ status: "Em análise" }).ok, false);
   const missingProvider = parseCreateProfile({
-    recordNumber: 16,
     displayName: null,
     status: "Ativo",
     email: { password: "segredo-local" },
   });
   assert.equal(missingProvider.ok, false);
-  assert.equal(profileLabel({ displayName: null, recordNumber: 16 }), "Perfil 16");
-  assert.equal(profileLabel({ displayName: "  ", recordNumber: 18 }), "Perfil 18");
+  assert.equal(profileLabel({ displayName: null }), "Sem nome");
+  assert.equal(profileLabel({ displayName: "  " }), "Sem nome");
+  assert.equal(profileLabel({ displayName: "Fernando Bejarano" }), "Fernando Bejarano");
   assert.equal(toPostgres("select * from t where a = ? and b = ?"), "select * from t where a = $1 and b = $2");
   assert.equal(resolveDatabaseTarget({ DATABASE_URL: "postgres://db.example/app" }), "postgres");
   assert.equal(resolveDatabaseTarget({}), "sqlite");
@@ -95,7 +99,6 @@ test("persistência, sessão e cofre", async () => {
   const secretsRoute = await import("../src/app/api/profiles/[id]/secrets/route.ts");
   const revealRoute = await import("../src/app/api/profiles/[id]/secrets/reveal/route.ts");
   const bmsRoute = await import("../src/app/api/bms/route.ts");
-  const stepRoute = await import("../src/app/api/step-up/route.ts");
   const ctx = { params: Promise.resolve({}) };
 
   const anonymous = await inventoryRoute.GET(call("/api/inventory"), ctx);
@@ -121,7 +124,6 @@ test("persistência, sessão e cofre", async () => {
       method: "POST",
       ...auth,
       json: {
-        recordNumber: 16,
         displayName: null,
         status: "Ativo",
         meta: { username: "acesso.teste", password: metaPassword, totp: "jbsw y3dp ehpk 3pxp" },
@@ -131,9 +133,13 @@ test("persistência, sessão e cofre", async () => {
     ctx,
   );
   assert.equal(created.status, 201);
-  const createdBody = (await created.json()) as { profile: { id: string; displayName: string | null; hasAccess: boolean } };
+  const createdBody = (await created.json()) as {
+    profile: { id: string; displayName: string | null; hasAccess: boolean; recordNumber: number; emailUsername: string | null };
+  };
   assert.equal(createdBody.profile.displayName, null);
   assert.equal(createdBody.profile.hasAccess, true);
+  assert.equal(createdBody.profile.recordNumber, 1);
+  assert.equal(createdBody.profile.emailUsername, "caixa.teste");
   const profileId = createdBody.profile.id;
   const profileCtx = { params: Promise.resolve({ id: profileId }) };
 
@@ -156,26 +162,11 @@ test("persistência, sessão e cofre", async () => {
   assert.equal(detail.profile.email.provider, "hotmail");
   assert.equal(detail.profile.email.username, true);
 
-  const revealDenied = await revealRoute.POST(
-    call(`/api/profiles/${profileId}/secrets/reveal`, { method: "POST", ...auth, json: { service: "meta", field: "password" } }),
-    profileCtx,
-  );
-  assert.equal(revealDenied.status, 403);
-  const deniedBody = (await revealDenied.json()) as { code?: string };
-  assert.equal(deniedBody.code, "step_up_required");
-  assert.equal(JSON.stringify(deniedBody).includes(metaPassword), false);
-
   const revealAnon = await revealRoute.POST(
     call(`/api/profiles/${profileId}/secrets/reveal`, { method: "POST", json: { service: "meta", field: "password" } }),
     profileCtx,
   );
   assert.equal(revealAnon.status, 401);
-
-  const badStep = await stepRoute.POST(call("/api/step-up", { method: "POST", ...auth, json: { passphrase: "errada" } }), ctx);
-  assert.equal(badStep.status, 401);
-
-  const stepped = await stepRoute.POST(call("/api/step-up", { method: "POST", ...auth, json: { passphrase } }), ctx);
-  assert.equal(stepped.status, 200);
 
   const revealed = await revealRoute.POST(
     call(`/api/profiles/${profileId}/secrets/reveal`, { method: "POST", ...auth, json: { service: "meta", field: "password" } }),
@@ -242,17 +233,20 @@ test("persistência, sessão e cofre", async () => {
   const nextBody = (await revealedNext.json()) as { value: string };
   assert.equal(nextBody.value, replacement);
 
-  const duplicate = await profilesRoute.POST(
-    call("/api/profiles", { method: "POST", ...auth, json: { recordNumber: 16, displayName: "Outro", status: "Ativo" } }),
+  const second = await profilesRoute.POST(
+    call("/api/profiles", { method: "POST", ...auth, json: { recordNumber: 99, displayName: "Outro", status: "Ativo" } }),
     ctx,
   );
-  assert.equal(duplicate.status, 409);
+  assert.equal(second.status, 201);
+  const secondBody = (await second.json()) as { profile: { recordNumber: number; emailUsername: string | null } };
+  assert.equal(secondBody.profile.recordNumber, 2);
+  assert.equal(secondBody.profile.emailUsername, null);
 
   const badLink = await profilesRoute.POST(
     call("/api/profiles", {
       method: "POST",
       ...auth,
-      json: { recordNumber: 17, status: "Ativo", profileUrl: "http://exemplo.test" },
+      json: { status: "Ativo", profileUrl: "http://exemplo.test" },
     }),
     ctx,
   );
@@ -282,10 +276,47 @@ test("persistência, sessão e cofre", async () => {
   const list = await inventoryRoute.GET(call("/api/inventory", auth), ctx);
   const listText = await list.text();
   assert.equal(listText.includes(replacement), false);
-  assert.equal(listText.includes("caixa.teste"), false);
+  assert.equal(listText.includes(emailPassword), false);
+  assert.equal(listText.includes("caixa.teste"), true);
+  assert.equal(listText.includes("acesso.teste"), false);
   const listBody = JSON.parse(listText) as { profiles: { status: string; recordNumber: number }[] };
   assert.equal(listBody.profiles[0]?.status, "Restrito");
-  assert.equal(listBody.profiles[0]?.recordNumber, 16);
+  assert.equal(listBody.profiles[0]?.recordNumber, 1);
+
+  await dbMod.qRun("update profiles set status = ? where id = ?", ["Offline", profileId]);
+  await dbMod.qRun("update bms set status = ? where meta_bm_id = ?", ["Em análise", bmId]);
+  const legacy = await inventoryRoute.GET(call("/api/inventory", auth), ctx);
+  assert.equal(legacy.status, 200);
+  const legacyBody = (await legacy.json()) as { profiles: { status: string }[]; bms: { status: string }[] };
+  assert.equal(legacyBody.profiles[0]?.status, "Offline");
+  assert.equal(legacyBody.bms[0]?.status, "Em análise");
+
+  const rejectedStatus = await profileRoute.PATCH(
+    call(`/api/profiles/${profileId}`, { method: "PATCH", ...auth, json: { status: "Offline" } }),
+    profileCtx,
+  );
+  assert.equal(rejectedStatus.status, 400);
+
+  const echoed = await profileRoute.PATCH(
+    call(`/api/profiles/${profileId}`, {
+      method: "PATCH",
+      ...auth,
+      json: { recordNumber: 50, displayName: "Mantém número", status: "Offline", bmIds: [] },
+    }),
+    profileCtx,
+  );
+  assert.equal(echoed.status, 200);
+  const echoedBody = (await echoed.json()) as { profile: { status: string; recordNumber: number; displayName: string | null } };
+  assert.equal(echoedBody.profile.status, "Offline");
+  assert.equal(echoedBody.profile.recordNumber, 1);
+  assert.equal(echoedBody.profile.displayName, "Mantém número");
+
+  const switched = await profileRoute.PATCH(
+    call(`/api/profiles/${profileId}`, { method: "PATCH", ...auth, json: { status: "Ativo" } }),
+    profileCtx,
+  );
+  assert.equal(switched.status, 200);
+  assert.equal(((await switched.json()) as { profile: { status: string } }).profile.status, "Ativo");
 
   await dbMod.closeDb();
 });

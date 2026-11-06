@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { STATUSES, type Status } from "@/lib/constants";
+import { type Status, type StoredStatus } from "@/lib/constants";
 import { profileLabel } from "@/lib/format";
 import type { BmPublic, ProfilePublic } from "@/lib/types";
 import { parseBmInput } from "@/lib/validators";
 import { ApiError, apiJson } from "./api";
 import { Dialog } from "./dialog";
+import { StatusSwitch } from "./status-select";
 
 const emptyBm: BmPublic = {
   id: "",
@@ -36,8 +37,7 @@ export function BmDialog({
   const initial = bm ?? emptyBm;
   const [name, setName] = useState(initial.name);
   const [metaBmId, setMetaBmId] = useState(initial.metaBmId);
-  const [status, setStatus] = useState<Status>(initial.status);
-  const [responsible, setResponsible] = useState(initial.responsible ?? "");
+  const [status, setStatus] = useState<StoredStatus>(initial.status);
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [profileIds, setProfileIds] = useState<string[]>(initial.profileIds);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,9 @@ export function BmDialog({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const parsed = parseBmInput({ name, metaBmId, status, responsible, notes, profileIds });
+    const parsed = bm
+      ? parseBmInput({ name, metaBmId, status, responsible: null, notes, profileIds }, "update")
+      : parseBmInput({ name, metaBmId, status: status as Status, responsible: null, notes, profileIds });
     if (!parsed.ok) {
       setError(parsed.message);
       return;
@@ -88,18 +90,7 @@ export function BmDialog({
           <input value={metaBmId} onChange={(event) => setMetaBmId(event.target.value)} inputMode="numeric" spellCheck={false} />
           <p className="hint">O ID fica em texto, inclusive se tiver muitos dígitos.</p>
         </label>
-        <label className="field">
-          <span>Status manual</span>
-          <select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
-            {STATUSES.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Responsável</span>
-          <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />
-        </label>
+        <StatusSwitch value={status} onChange={setStatus} />
         <label className="field">
           <span>Notas</span>
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />
@@ -113,10 +104,7 @@ export function BmDialog({
               {profiles.map((profile) => (
                 <label key={profile.id}>
                   <input type="checkbox" checked={profileIds.includes(profile.id)} onChange={() => toggle(profile.id)} />
-                  <span>
-                    {profileLabel(profile)}
-                    <span className="hint block">Registro {profile.recordNumber}</span>
-                  </span>
+                  <span>{profileLabel(profile)}</span>
                 </label>
               ))}
             </div>

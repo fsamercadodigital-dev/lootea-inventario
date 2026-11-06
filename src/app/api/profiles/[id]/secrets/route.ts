@@ -17,6 +17,7 @@ export const PUT = withRoute(async (request, context) => {
       id: profile.id,
       updatedAt: profile.updatedAt,
       hasAccess: profile.hasAccess,
+      emailUsername: profile.emailUsername,
       meta: profile.meta,
       email: profile.email,
       vault: profile.vault,

@@ -1,17 +1,18 @@
 import { randomUUID } from "crypto";
-import { SECRET_FIELDS, STATUSES, type EmailProvider, type SecretField, type Status } from "./constants";
+import { SECRET_FIELDS, isStatus, isStoredStatus, type EmailProvider, type SecretField, type Status, type StoredStatus } from "./constants";
 import { decryptField, encryptField, fieldAad, loadDataKey, vaultStatus } from "./crypto-box";
 import { AppError } from "./errors";
 import { qAll, qGet, qRun, withTx, type SqlRow, type SqlValue } from "./sql";
 import type {
   BmInput,
   BmPublic,
+  BmUpdate,
   CreateProfileInput,
   EmailAccessState,
   Inventory,
   ProfileDetail,
-  ProfileInput,
   ProfilePublic,
+  ProfileUpdate,
   SecretDraft,
   SecretPatch,
   SecretPresence,
@@ -35,9 +36,14 @@ function integer(value: SqlValue | undefined): number {
   throw new AppError(500, "Não foi possível concluir. Tente de novo.");
 }
 
-function statusOf(value: SqlValue | undefined): Status {
-  if (typeof value === "string" && (STATUSES as readonly string[]).includes(value)) return value as Status;
+function statusOf(value: SqlValue | undefined): StoredStatus {
+  if (typeof value === "string" && isStoredStatus(value)) return value;
   throw new AppError(500, "Não foi possível concluir. Tente de novo.");
+}
+
+function commitStatus(existing: StoredStatus, next: StoredStatus): StoredStatus {
+  if (isStatus(next) || next === existing) return next;
+  throw new AppError(400, "Escolha um status: Ativo ou Restrito.");
 }
 
 function isUnique(error: unknown): boolean {
@@ -71,7 +77,7 @@ async function profileIdsFor(bmId: string): Promise<string[]> {
   return rows.map((row) => text(row.profile_id));
 }
 
-function profileFrom(row: SqlRow, bmIds: string[], hasAccess: boolean): ProfilePublic {
+function profileFrom(row: SqlRow, bmIds: string[], hasAccess: boolean, emailUsername: string | null): ProfilePublic {
   return {
     id: text(row.id),
     recordNumber: integer(row.record_number),
@@ -85,7 +91,28 @@ function profileFrom(row: SqlRow, bmIds: string[], hasAccess: boolean): ProfileP
     updatedAt: text(row.updated_at),
     bmIds,
     hasAccess,
+    emailUsername,
   };
+}
+
+async function emailUsernameFor(profileId: string, stored: string | null): Promise<string | null> {
+  const current = stored?.trim() || null;
+  if (current) return current;
+  if (vaultStatus() !== "ready") return null;
+  const row = await qGet("select ciphertext from secret_fields where profile_id = ? and service = ? and field = ?", [
+    profileId,
+    "email",
+    "username",
+  ]);
+  if (!row) return null;
+  try {
+    const value = decryptField(text(row.ciphertext), fieldAad(profileId, "email", "username")).trim();
+    if (!value) return null;
+    await qRun("update profiles set email_username = ? where id = ? and email_username is null", [value, profileId]);
+    return value;
+  } catch {
+    return null;
+  }
 }
 
 function bmFrom(row: SqlRow, profileIds: string[]): BmPublic {
@@ -125,17 +152,24 @@ async function emailState(profileId: string): Promise<EmailAccessState> {
 
 async function toDetail(row: SqlRow): Promise<ProfileDetail> {
   const id = text(row.id);
+  const [bmIds, hasAccess, emailUsername, meta, email] = await Promise.all([
+    bmIdsFor(id),
+    hasAnySecret(id),
+    emailUsernameFor(id, nullableText(row.email_username)),
+    presenceFor(id, "meta"),
+    emailState(id),
+  ]);
   return {
-    ...profileFrom(row, await bmIdsFor(id), await hasAnySecret(id)),
+    ...profileFrom(row, bmIds, hasAccess, emailUsername),
     vault: vaultStatus(),
-    meta: await presenceFor(id, "meta"),
-    email: await emailState(id),
+    meta,
+    email,
   };
 }
 
 async function publicProfile(row: SqlRow): Promise<ProfilePublic> {
   const id = text(row.id);
-  return profileFrom(row, await bmIdsFor(id), await hasAnySecret(id));
+  return profileFrom(row, await bmIdsFor(id), await hasAnySecret(id), await emailUsernameFor(id, nullableText(row.email_username)));
 }
 
 export async function listInventory(): Promise<Inventory> {
@@ -146,6 +180,11 @@ export async function listInventory(): Promise<Inventory> {
     bms: await Promise.all(bmRows.map(async (row) => bmFrom(row, await profileIdsFor(text(row.id))))),
     vault: vaultStatus(),
   };
+}
+
+export async function listBms(): Promise<BmPublic[]> {
+  const bmRows = await qAll("select * from bms order by name");
+  return Promise.all(bmRows.map(async (row) => bmFrom(row, await profileIdsFor(text(row.id)))));
 }
 
 export async function getProfile(id: string): Promise<ProfileDetail | null> {
@@ -205,70 +244,70 @@ function draftHasSecret(draft: SecretDraft | undefined): boolean {
   return SECRET_FIELDS.some((field) => Boolean(draft[field]));
 }
 
+async function nextRecordNumber(): Promise<number> {
+  const row = await qGet("select coalesce(max(record_number), 0) + 1 as n from profiles");
+  const next = integer(row?.n);
+  if (next < 1 || next > 999999) throw new AppError(409, "Não há número de registro disponível.");
+  return next;
+}
+
 export async function createProfile(input: CreateProfileInput): Promise<ProfilePublic> {
   if (draftHasSecret(input.meta) || draftHasSecret(input.email)) loadDataKey();
   const id = randomUUID();
   const now = new Date().toISOString();
-  await withTx(async () => {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await qRun(
-        `insert into profiles (
-          id, record_number, display_name, meta_profile_id, profile_url, status, responsible, notes, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          input.recordNumber,
-          input.displayName,
-          input.metaProfileId,
-          input.profileUrl,
-          input.status,
-          input.responsible,
-          input.notes,
-          now,
-          now,
-        ],
-      );
+      await withTx(async () => {
+        const recordNumber = await nextRecordNumber();
+        await qRun(
+          `insert into profiles (
+            id, record_number, display_name, meta_profile_id, profile_url, status, responsible, notes, email_username, created_at, updated_at
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            recordNumber,
+            input.displayName,
+            input.metaProfileId,
+            input.profileUrl,
+            input.status,
+            input.responsible,
+            input.notes,
+            input.email?.username?.trim() || null,
+            now,
+            now,
+          ],
+        );
+        await replaceProfileLinks(id, input.bmIds);
+        await writeDraft(id, "meta", input.meta, now);
+        if (input.email) {
+          await qRun(
+            "insert into email_providers (profile_id, provider, other_label, updated_at) values (?, ?, ?, ?)",
+            [id, input.email.provider, input.email.otherLabel, now],
+          );
+          await writeDraft(id, "email", input.email, now);
+        }
+      });
+      return publicProfile(await requireProfileRow(id));
     } catch (error) {
-      if (isUnique(error)) throw new AppError(409, "Já existe um perfil com esse número.");
-      throw error;
+      if (!isUnique(error) || attempt === 2) {
+        if (isUnique(error)) throw new AppError(409, "Não foi possível reservar o número do registro. Tente de novo.");
+        throw error;
+      }
     }
-    await replaceProfileLinks(id, input.bmIds);
-    await writeDraft(id, "meta", input.meta, now);
-    if (input.email) {
-      await qRun(
-        "insert into email_providers (profile_id, provider, other_label, updated_at) values (?, ?, ?, ?)",
-        [id, input.email.provider, input.email.otherLabel, now],
-      );
-      await writeDraft(id, "email", input.email, now);
-    }
-  });
-  return publicProfile(await requireProfileRow(id));
+  }
+  throw new AppError(409, "Não foi possível reservar o número do registro. Tente de novo.");
 }
 
-export async function updateProfile(id: string, input: ProfileInput): Promise<ProfilePublic> {
-  await requireProfileRow(id);
+export async function updateProfile(id: string, input: ProfileUpdate): Promise<ProfilePublic> {
+  const existing = await requireProfileRow(id);
+  const status = commitStatus(statusOf(existing.status), input.status);
   const now = new Date().toISOString();
   await withTx(async () => {
-    try {
-      await qRun(
-        `update profiles set record_number = ?, display_name = ?, meta_profile_id = ?, profile_url = ?, status = ?,
-         responsible = ?, notes = ?, updated_at = ? where id = ?`,
-        [
-          input.recordNumber,
-          input.displayName,
-          input.metaProfileId,
-          input.profileUrl,
-          input.status,
-          input.responsible,
-          input.notes,
-          now,
-          id,
-        ],
-      );
-    } catch (error) {
-      if (isUnique(error)) throw new AppError(409, "Já existe um perfil com esse número.");
-      throw error;
-    }
+    await qRun(
+      `update profiles set display_name = ?, meta_profile_id = ?, profile_url = ?, status = ?,
+       responsible = ?, notes = ?, updated_at = ? where id = ?`,
+      [input.displayName, input.metaProfileId, input.profileUrl, status, input.responsible, input.notes, now, id],
+    );
     await replaceProfileLinks(id, input.bmIds);
   });
   return publicProfile(await requireProfileRow(id));
@@ -300,14 +339,15 @@ export async function createBm(input: BmInput): Promise<BmPublic> {
   return bmFrom(row, await profileIdsFor(id));
 }
 
-export async function updateBm(id: string, input: BmInput): Promise<BmPublic> {
-  await requireBmRow(id);
+export async function updateBm(id: string, input: BmUpdate): Promise<BmPublic> {
+  const existing = await requireBmRow(id);
+  const status = commitStatus(statusOf(existing.status), input.status);
   const now = new Date().toISOString();
   await withTx(async () => {
     try {
       await qRun(
         "update bms set name = ?, meta_bm_id = ?, status = ?, responsible = ?, notes = ?, updated_at = ? where id = ?",
-        [input.name, input.metaBmId, input.status, input.responsible, input.notes, now, id],
+        [input.name, input.metaBmId, status, input.responsible, input.notes, now, id],
       );
     } catch (error) {
       if (isUnique(error)) throw new AppError(409, "Já existe uma BM com esse ID da Meta.");
@@ -357,6 +397,9 @@ export async function saveSecrets(profileId: string, patch: SecretPatch): Promis
          on conflict(profile_id) do update set provider = excluded.provider, other_label = excluded.other_label, updated_at = excluded.updated_at`,
         [profileId, patch.provider, patch.otherLabel ?? null, now],
       );
+    }
+    if (patch.service === "email" && patch.username !== undefined) {
+      await qRun("update profiles set email_username = ? where id = ?", [patch.username?.trim() || null, profileId]);
     }
     await qRun("update profiles set updated_at = ? where id = ?", [now, profileId]);
   });

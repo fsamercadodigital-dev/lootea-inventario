@@ -105,14 +105,12 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
 
   return (
     <main className="shell py-6 sm:py-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-[0.18em] text-[var(--muted)] uppercase">FSA Mercado Digital</p>
           <h1 className="flex items-center gap-2 text-4xl">
-            Inventário Lootea
+            Lootea Contingência
             <Spark />
           </h1>
-          <p className="hint mt-1">Perfis e BMs cadastrados aqui. O status é manual e não vem da Meta.</p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void logout()}>
           Sair
@@ -123,15 +121,13 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
         <article className="panel p-4">
           <h2 className="text-lg">Perfis</h2>
           <p className="mt-2 text-sm leading-6">
-            {summary.profiles.total} no total · {summary.profiles.Ativo} ativos · {summary.profiles.Restrito} restritos ·{" "}
-            {summary.profiles.Offline} offline · {summary.profiles["Em análise"]} em análise · {summary.profiles.incomplete} incompletos
+            {summary.profiles.total} no total · {summary.profiles.Ativo} ativos · {summary.profiles.Restrito} restritos
           </p>
         </article>
         <article className="panel p-4">
           <h2 className="text-lg">BMs</h2>
           <p className="mt-2 text-sm leading-6">
-            {summary.bms.total} no total · {summary.bms.Ativo} ativas · {summary.bms.Restrito} restritas · {summary.bms.Offline} offline ·{" "}
-            {summary.bms["Em análise"]} em análise
+            {summary.bms.total} no total · {summary.bms.Ativo} ativas · {summary.bms.Restrito} restritas
           </p>
         </article>
       </section>

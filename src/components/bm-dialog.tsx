@@ -38,7 +38,6 @@ export function BmDialog({
   const [name, setName] = useState(initial.name);
   const [metaBmId, setMetaBmId] = useState(initial.metaBmId);
   const [status, setStatus] = useState<StoredStatus>(initial.status);
-  const [responsible, setResponsible] = useState(initial.responsible ?? "");
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [profileIds, setProfileIds] = useState<string[]>(initial.profileIds);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +51,8 @@ export function BmDialog({
     event.preventDefault();
     setError(null);
     const parsed = bm
-      ? parseBmInput({ name, metaBmId, status, responsible, notes, profileIds }, "update")
-      : parseBmInput({ name, metaBmId, status: status as Status, responsible, notes, profileIds });
+      ? parseBmInput({ name, metaBmId, status, responsible: null, notes, profileIds }, "update")
+      : parseBmInput({ name, metaBmId, status: status as Status, responsible: null, notes, profileIds });
     if (!parsed.ok) {
       setError(parsed.message);
       return;
@@ -92,10 +91,6 @@ export function BmDialog({
           <p className="hint">O ID fica em texto, inclusive se tiver muitos dígitos.</p>
         </label>
         <StatusSwitch value={status} onChange={setStatus} />
-        <label className="field">
-          <span>Responsável</span>
-          <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />
-        </label>
         <label className="field">
           <span>Notas</span>
           <textarea value={notes} onChange={(event) => setNotes(event.target.value)} />

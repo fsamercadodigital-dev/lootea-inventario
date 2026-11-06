@@ -24,7 +24,6 @@ export function ProfileEditor({
   const [displayName, setDisplayName] = useState(detail.displayName ?? "");
   const [metaProfileId, setMetaProfileId] = useState(detail.metaProfileId ?? "");
   const [profileUrl, setProfileUrl] = useState(detail.profileUrl ?? "");
-  const [responsible, setResponsible] = useState(detail.responsible ?? "");
   const [notes, setNotes] = useState(detail.notes ?? "");
   const [bmIds, setBmIds] = useState(detail.bmIds);
   const [message, setMessage] = useState<string | null>(null);
@@ -55,7 +54,7 @@ export function ProfileEditor({
       metaProfileId,
       profileUrl,
       status: profile.status,
-      responsible,
+      responsible: null,
       notes,
       bmIds,
     });
@@ -73,7 +72,6 @@ export function ProfileEditor({
       setDisplayName(body.profile.displayName ?? "");
       setMetaProfileId(body.profile.metaProfileId ?? "");
       setProfileUrl(body.profile.profileUrl ?? "");
-      setResponsible(body.profile.responsible ?? "");
       setNotes(body.profile.notes ?? "");
       setBmIds(body.profile.bmIds);
       setMessage("Dados salvos.");
@@ -127,10 +125,6 @@ export function ProfileEditor({
           <label className="field">
             <span>Link do perfil</span>
             <input value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder="https://" />
-          </label>
-          <label className="field sm:col-span-2">
-            <span>Responsável</span>
-            <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />
           </label>
         </div>
         <label className="field">

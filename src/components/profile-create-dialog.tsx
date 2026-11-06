@@ -25,7 +25,6 @@ export function ProfileCreateDialog({
   const [metaProfileId, setMetaProfileId] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
   const [status, setStatus] = useState<Status>("Ativo");
-  const [responsible, setResponsible] = useState("");
   const [notes, setNotes] = useState("");
   const [bmIds, setBmIds] = useState<string[]>([]);
   const [metaUser, setMetaUser] = useState("");
@@ -54,7 +53,7 @@ export function ProfileCreateDialog({
       metaProfileId,
       profileUrl,
       status,
-      responsible,
+      responsible: null,
       notes,
       bmIds,
       meta: { username: metaUser, password: metaPassword, totp: metaTotp, recovery: metaRecovery },
@@ -114,10 +113,6 @@ export function ProfileCreateDialog({
             <input value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder="https://" />
           </label>
           <StatusSwitch value={status} onChange={setStatus} />
-          <label className="field">
-            <span>Responsável</span>
-            <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />
-          </label>
         </div>
         <label className="field">
           <span>Notas</span>

@@ -176,7 +176,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_12rem]">
         <label className="field">
           <span>Buscar</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, ID ou responsável" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, ID ou notas" />
         </label>
         <label className="field">
           <span>Status</span>

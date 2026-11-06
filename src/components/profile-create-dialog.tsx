@@ -103,7 +103,7 @@ export function ProfileCreateDialog({
           <label className="field">
             <span>Nome</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-            <p className="hint">Se ficar vazio, o painel mostra “Perfil” e o número.</p>
+            <p className="hint">Se ficar vazio, o painel mostra “Sem nome”.</p>
           </label>
           <label className="field">
             <span>ID do perfil na Meta</span>

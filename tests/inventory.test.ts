@@ -81,8 +81,9 @@ test("validadores rejeitam link inseguro e ID numérico", () => {
     email: { password: "segredo-local" },
   });
   assert.equal(missingProvider.ok, false);
-  assert.equal(profileLabel({ displayName: null, recordNumber: 16 }), "Perfil 16");
-  assert.equal(profileLabel({ displayName: "  ", recordNumber: 18 }), "Perfil 18");
+  assert.equal(profileLabel({ displayName: null }), "Sem nome");
+  assert.equal(profileLabel({ displayName: "  " }), "Sem nome");
+  assert.equal(profileLabel({ displayName: "Fernando Bejarano" }), "Fernando Bejarano");
   assert.equal(toPostgres("select * from t where a = ? and b = ?"), "select * from t where a = $1 and b = $2");
   assert.equal(resolveDatabaseTarget({ DATABASE_URL: "postgres://db.example/app" }), "postgres");
   assert.equal(resolveDatabaseTarget({}), "sqlite");

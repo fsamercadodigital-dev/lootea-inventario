@@ -34,7 +34,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     if (status !== "todos" && profile.status !== status) return false;
     if (!needle) return true;
     const linked = profile.bmIds.map((id) => bmsById.get(id)?.name ?? "").join(" ");
-    const hay = [profileLabel(profile), profile.recordNumber, profile.metaProfileId, profile.responsible, profile.notes, linked]
+    const hay = [profileLabel(profile), profile.metaProfileId, profile.responsible, profile.notes, linked]
       .filter(Boolean)
       .join(" ")
       .toLocaleLowerCase("pt-BR");
@@ -176,7 +176,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_12rem]">
         <label className="field">
           <span>Buscar</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, número, ID ou responsável" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, ID ou responsável" />
         </label>
         <label className="field">
           <span>Status</span>
@@ -206,7 +206,6 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
             profiles.map((profile) => (
               <article key={profile.id} className="panel grid gap-3 p-4 sm:grid-cols-[1fr_16rem] sm:items-start">
                 <div>
-                  <p className="text-xs font-bold tracking-wide text-[var(--muted)] uppercase">Registro {profile.recordNumber}</p>
                   <h2 className="text-2xl">
                     <Link className="underline-offset-4 hover:underline" href={`/perfis/${profile.id}`}>
                       {profileLabel(profile)}

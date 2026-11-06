@@ -1,6 +1,6 @@
-export function profileLabel(profile: { displayName: string | null; recordNumber: number }): string {
+export function profileLabel(profile: { displayName: string | null }): string {
   const name = profile.displayName?.trim();
-  return name || `Perfil ${profile.recordNumber}`;
+  return name || "Sem nome";
 }
 
 export function formatDateTime(iso: string): string {

@@ -109,10 +109,7 @@ export function BmDialog({
               {profiles.map((profile) => (
                 <label key={profile.id}>
                   <input type="checkbox" checked={profileIds.includes(profile.id)} onChange={() => toggle(profile.id)} />
-                  <span>
-                    {profileLabel(profile)}
-                    <span className="hint block">Registro {profile.recordNumber}</span>
-                  </span>
+                  <span>{profileLabel(profile)}</span>
                 </label>
               ))}
             </div>

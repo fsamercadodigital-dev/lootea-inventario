@@ -93,7 +93,6 @@ export function ProfileEditor({
       </Link>
       <header className="panel grid gap-4 p-5 sm:grid-cols-[1fr_16rem] sm:items-end">
         <div>
-          <p className="text-xs font-bold tracking-wide text-[var(--muted)] uppercase">Registro {profile.recordNumber}</p>
           <h1 className="text-4xl">{label}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {!profile.displayName?.trim() ? <span className="badge">Dados incompletos</span> : null}

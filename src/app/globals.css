@@ -205,24 +205,62 @@ dialog::backdrop {
   background: rgba(10, 10, 10, 0.46);
 }
 
-.status-select[data-status="Ativo"] {
-  background: var(--ok);
-  color: var(--ok-ink);
+.status-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
-.status-select[data-status="Offline"] {
-  background: var(--offline);
-  color: #44403c;
+.status-toggle-label,
+.status-toggle-state {
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
-.status-select[data-status="Restrito"] {
-  background: var(--warn);
-  color: var(--warn-ink);
+.status-toggle-state {
+  font-size: 0.95rem;
 }
 
-.status-select[data-status="Em análise"] {
-  background: var(--info);
-  color: var(--info-ink);
+.status-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.75rem;
+}
+
+.status-switch {
+  width: 3rem;
+  height: 1.75rem;
+  padding: 0.15rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+
+.status-switch[data-on="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  justify-content: flex-end;
+}
+
+.status-switch-thumb {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.status-switch[data-on="true"] .status-switch-thumb {
+  background: #fff;
+}
+
+.status-switch:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .tabs {

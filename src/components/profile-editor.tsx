@@ -101,7 +101,7 @@ export function ProfileEditor({
           </div>
           <p className="hint mt-2">Abrir este cadastro não cria conta na Meta nem no e-mail.</p>
         </div>
-        <StatusSelect value={profile.status} label={`Mudar status de ${label}`} onChange={changeStatus} />
+        <StatusSelect value={profile.status} onChange={changeStatus} />
       </header>
       {message ? (
         <p className="ok" role="status">

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { STATUSES, isStatus, type Status, type StoredStatus } from "@/lib/constants";
+import { type Status, type StoredStatus } from "@/lib/constants";
 import { profileLabel } from "@/lib/format";
 import type { BmPublic, ProfilePublic } from "@/lib/types";
 import { parseBmInput } from "@/lib/validators";
 import { ApiError, apiJson } from "./api";
 import { Dialog } from "./dialog";
+import { StatusSwitch } from "./status-select";
 
 const emptyBm: BmPublic = {
   id: "",
@@ -90,19 +91,7 @@ export function BmDialog({
           <input value={metaBmId} onChange={(event) => setMetaBmId(event.target.value)} inputMode="numeric" spellCheck={false} />
           <p className="hint">O ID fica em texto, inclusive se tiver muitos dígitos.</p>
         </label>
-        <label className="field">
-          <span>Status manual</span>
-          <select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
-            {isStatus(status) ? null : (
-              <option value={status} disabled>
-                {status}
-              </option>
-            )}
-            {STATUSES.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </label>
+        <StatusSwitch value={status} onChange={setStatus} />
         <label className="field">
           <span>Responsável</span>
           <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />

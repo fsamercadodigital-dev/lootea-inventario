@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PROVIDER_LABELS, STATUSES, type EmailProvider } from "@/lib/constants";
+import { PROVIDER_LABELS, type EmailProvider, type Status } from "@/lib/constants";
 import type { BmPublic, VaultState } from "@/lib/types";
 import { parseCreateProfile } from "@/lib/validators";
 import { ApiError, apiJson } from "./api";
 import { Dialog } from "./dialog";
+import { StatusSwitch } from "./status-select";
 
 export function ProfileCreateDialog({
   open,
@@ -23,7 +24,7 @@ export function ProfileCreateDialog({
   const [displayName, setDisplayName] = useState("");
   const [metaProfileId, setMetaProfileId] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("Ativo");
+  const [status, setStatus] = useState<Status>("Ativo");
   const [responsible, setResponsible] = useState("");
   const [notes, setNotes] = useState("");
   const [bmIds, setBmIds] = useState<string[]>([]);
@@ -112,14 +113,7 @@ export function ProfileCreateDialog({
             <span>Link do perfil</span>
             <input value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder="https://" />
           </label>
-          <label className="field">
-            <span>Status manual</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value as (typeof STATUSES)[number])}>
-              {STATUSES.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
+          <StatusSwitch value={status} onChange={setStatus} />
           <label className="field">
             <span>Responsável</span>
             <input value={responsible} onChange={(event) => setResponsible(event.target.value)} />

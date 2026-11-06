@@ -219,11 +219,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
                   {profile.metaProfileId ? <p className="hint mt-2">ID Meta {profile.metaProfileId}</p> : null}
                   <p className="hint mt-2">Atualizado {formatDateTime(profile.updatedAt)}</p>
                 </div>
-                <StatusSelect
-                  value={profile.status}
-                  label={`Mudar status de ${profileLabel(profile)}`}
-                  onChange={(next) => changeProfileStatus(profile.id, next)}
-                />
+                <StatusSelect value={profile.status} onChange={(next) => changeProfileStatus(profile.id, next)} />
               </article>
             ))
           )}
@@ -265,7 +261,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
                     Editar
                   </button>
                 </div>
-                <StatusSelect value={bm.status} label={`Mudar status de ${bm.name}`} onChange={(next) => changeBmStatus(bm.id, next)} />
+                <StatusSelect value={bm.status} onChange={(next) => changeBmStatus(bm.id, next)} />
               </article>
             ))
           )}

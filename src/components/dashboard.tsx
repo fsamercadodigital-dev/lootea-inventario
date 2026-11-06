@@ -106,9 +106,12 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     <main className="shell py-6 sm:py-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 text-4xl">
-            Lootea Contingência
-            <Spark />
+          <h1>
+            <span className="flex items-center gap-2 text-4xl">
+              Lootea
+              <Spark />
+            </span>
+            <span className="mt-1 block text-3xl font-semibold tracking-tight">contingência</span>
           </h1>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void logout()}>

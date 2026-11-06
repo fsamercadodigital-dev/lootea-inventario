@@ -111,7 +111,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
               Lootea
               <Spark />
             </span>
-            <span className="mt-1 block text-3xl font-semibold tracking-tight">contingência</span>
+            <span className="mt-1 block text-2xl font-semibold tracking-tight">contingência</span>
           </h1>
         </div>
         <button type="button" className="btn btn-secondary" onClick={() => void logout()}>

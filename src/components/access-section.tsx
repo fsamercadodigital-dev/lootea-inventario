@@ -17,6 +17,7 @@ type SavedAccess = {
   profile: {
     updatedAt: string;
     hasAccess: boolean;
+    emailUsername: string | null;
     meta: SecretPresence;
     email: EmailAccessState;
     vault: VaultState;

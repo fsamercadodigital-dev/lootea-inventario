@@ -34,7 +34,7 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     if (status !== "todos" && profile.status !== status) return false;
     if (!needle) return true;
     const linked = profile.bmIds.map((id) => bmsById.get(id)?.name ?? "").join(" ");
-    const hay = [profileLabel(profile), profile.metaProfileId, profile.responsible, profile.notes, linked]
+    const hay = [profileLabel(profile), profile.emailUsername, profile.metaProfileId, profile.responsible, profile.notes, linked]
       .filter(Boolean)
       .join(" ")
       .toLocaleLowerCase("pt-BR");
@@ -211,10 +211,12 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
                       {profileLabel(profile)}
                     </Link>
                   </h2>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {!profile.displayName?.trim() ? <span className="badge">Dados incompletos</span> : null}
-                    <span className="hint">{profile.hasAccess ? "Acesso informado" : "Acesso pendente"}</span>
-                  </div>
+                  {profile.emailUsername ? <p className="hint mt-2">{profile.emailUsername}</p> : null}
+                  {!profile.displayName?.trim() ? (
+                    <div className="mt-2">
+                      <span className="badge">Dados incompletos</span>
+                    </div>
+                  ) : null}
                   {profile.metaProfileId ? <p className="hint mt-2">ID Meta {profile.metaProfileId}</p> : null}
                   <p className="hint mt-2">Atualizado {formatDateTime(profile.updatedAt)}</p>
                 </div>

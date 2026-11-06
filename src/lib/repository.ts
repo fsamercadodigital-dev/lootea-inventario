@@ -77,7 +77,7 @@ async function profileIdsFor(bmId: string): Promise<string[]> {
   return rows.map((row) => text(row.profile_id));
 }
 
-function profileFrom(row: SqlRow, bmIds: string[], hasAccess: boolean): ProfilePublic {
+function profileFrom(row: SqlRow, bmIds: string[], hasAccess: boolean, emailUsername: string | null): ProfilePublic {
   return {
     id: text(row.id),
     recordNumber: integer(row.record_number),
@@ -91,7 +91,28 @@ function profileFrom(row: SqlRow, bmIds: string[], hasAccess: boolean): ProfileP
     updatedAt: text(row.updated_at),
     bmIds,
     hasAccess,
+    emailUsername,
   };
+}
+
+async function emailUsernameFor(profileId: string, stored: string | null): Promise<string | null> {
+  const current = stored?.trim() || null;
+  if (current) return current;
+  if (vaultStatus() !== "ready") return null;
+  const row = await qGet("select ciphertext from secret_fields where profile_id = ? and service = ? and field = ?", [
+    profileId,
+    "email",
+    "username",
+  ]);
+  if (!row) return null;
+  try {
+    const value = decryptField(text(row.ciphertext), fieldAad(profileId, "email", "username")).trim();
+    if (!value) return null;
+    await qRun("update profiles set email_username = ? where id = ? and email_username is null", [value, profileId]);
+    return value;
+  } catch {
+    return null;
+  }
 }
 
 function bmFrom(row: SqlRow, profileIds: string[]): BmPublic {
@@ -132,7 +153,7 @@ async function emailState(profileId: string): Promise<EmailAccessState> {
 async function toDetail(row: SqlRow): Promise<ProfileDetail> {
   const id = text(row.id);
   return {
-    ...profileFrom(row, await bmIdsFor(id), await hasAnySecret(id)),
+    ...profileFrom(row, await bmIdsFor(id), await hasAnySecret(id), await emailUsernameFor(id, nullableText(row.email_username))),
     vault: vaultStatus(),
     meta: await presenceFor(id, "meta"),
     email: await emailState(id),
@@ -141,7 +162,7 @@ async function toDetail(row: SqlRow): Promise<ProfileDetail> {
 
 async function publicProfile(row: SqlRow): Promise<ProfilePublic> {
   const id = text(row.id);
-  return profileFrom(row, await bmIdsFor(id), await hasAnySecret(id));
+  return profileFrom(row, await bmIdsFor(id), await hasAnySecret(id), await emailUsernameFor(id, nullableText(row.email_username)));
 }
 
 export async function listInventory(): Promise<Inventory> {
@@ -228,8 +249,8 @@ export async function createProfile(input: CreateProfileInput): Promise<ProfileP
         const recordNumber = await nextRecordNumber();
         await qRun(
           `insert into profiles (
-            id, record_number, display_name, meta_profile_id, profile_url, status, responsible, notes, created_at, updated_at
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, record_number, display_name, meta_profile_id, profile_url, status, responsible, notes, email_username, created_at, updated_at
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             recordNumber,
@@ -239,6 +260,7 @@ export async function createProfile(input: CreateProfileInput): Promise<ProfileP
             input.status,
             input.responsible,
             input.notes,
+            input.email?.username?.trim() || null,
             now,
             now,
           ],
@@ -363,6 +385,9 @@ export async function saveSecrets(profileId: string, patch: SecretPatch): Promis
          on conflict(profile_id) do update set provider = excluded.provider, other_label = excluded.other_label, updated_at = excluded.updated_at`,
         [profileId, patch.provider, patch.otherLabel ?? null, now],
       );
+    }
+    if (patch.service === "email" && patch.username !== undefined) {
+      await qRun("update profiles set email_username = ? where id = ?", [patch.username?.trim() || null, profileId]);
     }
     await qRun("update profiles set updated_at = ? where id = ?", [now, profileId]);
   });

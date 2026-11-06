@@ -15,6 +15,7 @@ export type ProfilePublic = {
   updatedAt: string;
   bmIds: string[];
   hasAccess: boolean;
+  emailUsername: string | null;
 };
 
 export type BmPublic = {

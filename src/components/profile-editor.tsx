@@ -94,6 +94,7 @@ export function ProfileEditor({
       <header className="panel grid gap-4 p-5 sm:grid-cols-[1fr_16rem] sm:items-end">
         <div>
           <h1 className="text-4xl">{label}</h1>
+          {profile.emailUsername ? <p className="hint mt-2">{profile.emailUsername}</p> : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {!profile.displayName?.trim() ? <span className="badge">Dados incompletos</span> : null}
             <p className="hint">Status manual, sem consulta à Meta. Atualizado {formatDateTime(profile.updatedAt)}</p>

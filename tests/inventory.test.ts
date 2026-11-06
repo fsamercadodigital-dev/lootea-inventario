@@ -134,11 +134,12 @@ test("persistência, sessão e cofre", async () => {
   );
   assert.equal(created.status, 201);
   const createdBody = (await created.json()) as {
-    profile: { id: string; displayName: string | null; hasAccess: boolean; recordNumber: number };
+    profile: { id: string; displayName: string | null; hasAccess: boolean; recordNumber: number; emailUsername: string | null };
   };
   assert.equal(createdBody.profile.displayName, null);
   assert.equal(createdBody.profile.hasAccess, true);
   assert.equal(createdBody.profile.recordNumber, 1);
+  assert.equal(createdBody.profile.emailUsername, "caixa.teste");
   const profileId = createdBody.profile.id;
   const profileCtx = { params: Promise.resolve({ id: profileId }) };
 
@@ -237,7 +238,9 @@ test("persistência, sessão e cofre", async () => {
     ctx,
   );
   assert.equal(second.status, 201);
-  assert.equal(((await second.json()) as { profile: { recordNumber: number } }).profile.recordNumber, 2);
+  const secondBody = (await second.json()) as { profile: { recordNumber: number; emailUsername: string | null } };
+  assert.equal(secondBody.profile.recordNumber, 2);
+  assert.equal(secondBody.profile.emailUsername, null);
 
   const badLink = await profilesRoute.POST(
     call("/api/profiles", {
@@ -273,7 +276,9 @@ test("persistência, sessão e cofre", async () => {
   const list = await inventoryRoute.GET(call("/api/inventory", auth), ctx);
   const listText = await list.text();
   assert.equal(listText.includes(replacement), false);
-  assert.equal(listText.includes("caixa.teste"), false);
+  assert.equal(listText.includes(emailPassword), false);
+  assert.equal(listText.includes("caixa.teste"), true);
+  assert.equal(listText.includes("acesso.teste"), false);
   const listBody = JSON.parse(listText) as { profiles: { status: string; recordNumber: number }[] };
   assert.equal(listBody.profiles[0]?.status, "Restrito");
   assert.equal(listBody.profiles[0]?.recordNumber, 1);

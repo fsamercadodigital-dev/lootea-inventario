@@ -47,8 +47,6 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
     const hay = [bm.name, bm.metaBmId, bm.responsible, bm.notes, linked].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
     return hay.includes(needle);
   });
-  const suggested = data.profiles.reduce((max, profile) => Math.max(max, profile.recordNumber), 0) + 1;
-
   async function changeProfileStatus(id: string, next: Status) {
     try {
       const body = await apiJson<{ profile: ProfilePublic }>(`/api/profiles/${id}`, {
@@ -277,7 +275,6 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
       {profileOpen ? (
         <ProfileCreateDialog
           open
-          suggestedNumber={suggested}
           bms={data.bms}
           vault={data.vault}
           onClose={() => setProfileOpen(false)}

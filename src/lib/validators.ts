@@ -72,16 +72,6 @@ export function parseStatus(value: unknown): Parsed<Status> {
   return { ok: true, value: parsed.value as Status };
 }
 
-export function parseRecordNumber(value: unknown): Parsed<number> {
-  if (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 999999) {
-    return { ok: true, value };
-  }
-  if (typeof value === "string" && /^[1-9]\d{0,5}$/.test(value.trim())) {
-    return { ok: true, value: Number(value.trim()) };
-  }
-  return fail("Informe o número do registro.");
-}
-
 export function parseDigits(value: unknown, label: string, required: boolean): Parsed<string | null> {
   if (value == null || value === "") {
     return required ? fail(`Informe ${label}.`) : { ok: true, value: null };
@@ -151,8 +141,6 @@ function parseIdList(value: unknown, label: string): Parsed<string[]> {
 function parseProfileFields(record: Record<string, unknown>): Parsed<ProfileInput>;
 function parseProfileFields(record: Record<string, unknown>, allowLegacy: true): Parsed<ProfileUpdate>;
 function parseProfileFields(record: Record<string, unknown>, allowLegacy = false): Parsed<ProfileInput | ProfileUpdate> {
-  const recordNumber = parseRecordNumber(record.recordNumber);
-  if (!recordNumber.ok) return recordNumber;
   const displayName = parseLine(record.displayName, "O nome", 120, false);
   if (!displayName.ok) return displayName;
   const metaProfileId = parseDigits(record.metaProfileId, "o ID do perfil na Meta", false);
@@ -170,7 +158,6 @@ function parseProfileFields(record: Record<string, unknown>, allowLegacy = false
   return {
     ok: true,
     value: {
-      recordNumber: recordNumber.value,
       displayName: displayName.value,
       metaProfileId: metaProfileId.value,
       profileUrl: profileUrl.value,

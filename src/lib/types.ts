@@ -56,7 +56,6 @@ export type EmailDraft = SecretDraft & {
 };
 
 export type ProfileInput = {
-  recordNumber: number;
   displayName: string | null;
   metaProfileId: string | null;
   profileUrl: string | null;

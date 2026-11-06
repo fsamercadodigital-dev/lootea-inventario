@@ -21,7 +21,6 @@ export function ProfileEditor({
 }) {
   setCsrf(csrfToken);
   const [profile, setProfile] = useState(detail);
-  const [recordNumber, setRecordNumber] = useState(String(detail.recordNumber));
   const [displayName, setDisplayName] = useState(detail.displayName ?? "");
   const [metaProfileId, setMetaProfileId] = useState(detail.metaProfileId ?? "");
   const [profileUrl, setProfileUrl] = useState(detail.profileUrl ?? "");
@@ -52,7 +51,6 @@ export function ProfileEditor({
     setError(null);
     setMessage(null);
     const parsed = parseProfileInput({
-      recordNumber,
       displayName,
       metaProfileId,
       profileUrl,
@@ -72,7 +70,6 @@ export function ProfileEditor({
         json: parsed.value,
       });
       setProfile((current) => ({ ...current, ...body.profile }));
-      setRecordNumber(String(body.profile.recordNumber));
       setDisplayName(body.profile.displayName ?? "");
       setMetaProfileId(body.profile.metaProfileId ?? "");
       setProfileUrl(body.profile.profileUrl ?? "");
@@ -119,10 +116,6 @@ export function ProfileEditor({
       <form className="panel grid gap-4 p-5" onSubmit={saveProfile} noValidate>
         <h2 className="text-2xl">Dados do perfil</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="field">
-            <span>Número do registro</span>
-            <input inputMode="numeric" value={recordNumber} onChange={(event) => setRecordNumber(event.target.value)} />
-          </label>
           <label className="field">
             <span>Nome</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />

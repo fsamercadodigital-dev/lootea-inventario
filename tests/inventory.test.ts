@@ -73,10 +73,9 @@ test("validadores rejeitam link inseguro e ID numérico", () => {
   if (textId.ok) assert.equal(textId.value.metaBmId, bmId);
   assert.equal(parseBmInput({ name: "BM", metaBmId: bmId, status: "Offline" }).ok, false);
   assert.equal(parseBmInput({ name: "BM", metaBmId: bmId, status: "Em análise" }).ok, false);
-  assert.equal(parseCreateProfile({ recordNumber: 3, status: "Offline" }).ok, false);
-  assert.equal(parseCreateProfile({ recordNumber: 3, status: "Em análise" }).ok, false);
+  assert.equal(parseCreateProfile({ status: "Offline" }).ok, false);
+  assert.equal(parseCreateProfile({ status: "Em análise" }).ok, false);
   const missingProvider = parseCreateProfile({
-    recordNumber: 16,
     displayName: null,
     status: "Ativo",
     email: { password: "segredo-local" },
@@ -125,7 +124,6 @@ test("persistência, sessão e cofre", async () => {
       method: "POST",
       ...auth,
       json: {
-        recordNumber: 16,
         displayName: null,
         status: "Ativo",
         meta: { username: "acesso.teste", password: metaPassword, totp: "jbsw y3dp ehpk 3pxp" },
@@ -135,9 +133,12 @@ test("persistência, sessão e cofre", async () => {
     ctx,
   );
   assert.equal(created.status, 201);
-  const createdBody = (await created.json()) as { profile: { id: string; displayName: string | null; hasAccess: boolean } };
+  const createdBody = (await created.json()) as {
+    profile: { id: string; displayName: string | null; hasAccess: boolean; recordNumber: number };
+  };
   assert.equal(createdBody.profile.displayName, null);
   assert.equal(createdBody.profile.hasAccess, true);
+  assert.equal(createdBody.profile.recordNumber, 1);
   const profileId = createdBody.profile.id;
   const profileCtx = { params: Promise.resolve({ id: profileId }) };
 
@@ -246,17 +247,18 @@ test("persistência, sessão e cofre", async () => {
   const nextBody = (await revealedNext.json()) as { value: string };
   assert.equal(nextBody.value, replacement);
 
-  const duplicate = await profilesRoute.POST(
-    call("/api/profiles", { method: "POST", ...auth, json: { recordNumber: 16, displayName: "Outro", status: "Ativo" } }),
+  const second = await profilesRoute.POST(
+    call("/api/profiles", { method: "POST", ...auth, json: { recordNumber: 99, displayName: "Outro", status: "Ativo" } }),
     ctx,
   );
-  assert.equal(duplicate.status, 409);
+  assert.equal(second.status, 201);
+  assert.equal(((await second.json()) as { profile: { recordNumber: number } }).profile.recordNumber, 2);
 
   const badLink = await profilesRoute.POST(
     call("/api/profiles", {
       method: "POST",
       ...auth,
-      json: { recordNumber: 17, status: "Ativo", profileUrl: "http://exemplo.test" },
+      json: { status: "Ativo", profileUrl: "http://exemplo.test" },
     }),
     ctx,
   );
@@ -289,7 +291,7 @@ test("persistência, sessão e cofre", async () => {
   assert.equal(listText.includes("caixa.teste"), false);
   const listBody = JSON.parse(listText) as { profiles: { status: string; recordNumber: number }[] };
   assert.equal(listBody.profiles[0]?.status, "Restrito");
-  assert.equal(listBody.profiles[0]?.recordNumber, 16);
+  assert.equal(listBody.profiles[0]?.recordNumber, 1);
 
   await dbMod.qRun("update profiles set status = ? where id = ?", ["Offline", profileId]);
   await dbMod.qRun("update bms set status = ? where meta_bm_id = ?", ["Em análise", bmId]);
@@ -309,12 +311,15 @@ test("persistência, sessão e cofre", async () => {
     call(`/api/profiles/${profileId}`, {
       method: "PATCH",
       ...auth,
-      json: { recordNumber: 16, displayName: null, status: "Offline", bmIds: [] },
+      json: { recordNumber: 50, displayName: "Mantém número", status: "Offline", bmIds: [] },
     }),
     profileCtx,
   );
   assert.equal(echoed.status, 200);
-  assert.equal(((await echoed.json()) as { profile: { status: string } }).profile.status, "Offline");
+  const echoedBody = (await echoed.json()) as { profile: { status: string; recordNumber: number; displayName: string | null } };
+  assert.equal(echoedBody.profile.status, "Offline");
+  assert.equal(echoedBody.profile.recordNumber, 1);
+  assert.equal(echoedBody.profile.displayName, "Mantém número");
 
   const switched = await profileRoute.PATCH(
     call(`/api/profiles/${profileId}`, { method: "PATCH", ...auth, json: { status: "Ativo" } }),

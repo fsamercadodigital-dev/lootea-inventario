@@ -10,19 +10,16 @@ import { Dialog } from "./dialog";
 
 export function ProfileCreateDialog({
   open,
-  suggestedNumber,
   bms,
   vault,
   onClose,
 }: {
   open: boolean;
-  suggestedNumber: number;
   bms: BmPublic[];
   vault: VaultState;
   onClose: () => void;
 }) {
   const router = useRouter();
-  const [recordNumber, setRecordNumber] = useState(String(suggestedNumber));
   const [displayName, setDisplayName] = useState("");
   const [metaProfileId, setMetaProfileId] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
@@ -52,7 +49,6 @@ export function ProfileCreateDialog({
     event.preventDefault();
     setError(null);
     const parsed = parseCreateProfile({
-      recordNumber,
       displayName,
       metaProfileId,
       profileUrl,
@@ -103,10 +99,6 @@ export function ProfileCreateDialog({
     >
       <form className="grid gap-4" onSubmit={submit} noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="field">
-            <span>Número do registro</span>
-            <input inputMode="numeric" value={recordNumber} onChange={(event) => setRecordNumber(event.target.value)} />
-          </label>
           <label className="field">
             <span>Nome</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />

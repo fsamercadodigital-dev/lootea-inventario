@@ -211,44 +211,57 @@ function draftHasSecret(draft: SecretDraft | undefined): boolean {
   return SECRET_FIELDS.some((field) => Boolean(draft[field]));
 }
 
+async function nextRecordNumber(): Promise<number> {
+  const row = await qGet("select coalesce(max(record_number), 0) + 1 as n from profiles");
+  const next = integer(row?.n);
+  if (next < 1 || next > 999999) throw new AppError(409, "Não há número de registro disponível.");
+  return next;
+}
+
 export async function createProfile(input: CreateProfileInput): Promise<ProfilePublic> {
   if (draftHasSecret(input.meta) || draftHasSecret(input.email)) loadDataKey();
   const id = randomUUID();
   const now = new Date().toISOString();
-  await withTx(async () => {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await qRun(
-        `insert into profiles (
-          id, record_number, display_name, meta_profile_id, profile_url, status, responsible, notes, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          input.recordNumber,
-          input.displayName,
-          input.metaProfileId,
-          input.profileUrl,
-          input.status,
-          input.responsible,
-          input.notes,
-          now,
-          now,
-        ],
-      );
+      await withTx(async () => {
+        const recordNumber = await nextRecordNumber();
+        await qRun(
+          `insert into profiles (
+            id, record_number, display_name, meta_profile_id, profile_url, status, responsible, notes, created_at, updated_at
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            recordNumber,
+            input.displayName,
+            input.metaProfileId,
+            input.profileUrl,
+            input.status,
+            input.responsible,
+            input.notes,
+            now,
+            now,
+          ],
+        );
+        await replaceProfileLinks(id, input.bmIds);
+        await writeDraft(id, "meta", input.meta, now);
+        if (input.email) {
+          await qRun(
+            "insert into email_providers (profile_id, provider, other_label, updated_at) values (?, ?, ?, ?)",
+            [id, input.email.provider, input.email.otherLabel, now],
+          );
+          await writeDraft(id, "email", input.email, now);
+        }
+      });
+      return publicProfile(await requireProfileRow(id));
     } catch (error) {
-      if (isUnique(error)) throw new AppError(409, "Já existe um perfil com esse número.");
-      throw error;
+      if (!isUnique(error) || attempt === 2) {
+        if (isUnique(error)) throw new AppError(409, "Não foi possível reservar o número do registro. Tente de novo.");
+        throw error;
+      }
     }
-    await replaceProfileLinks(id, input.bmIds);
-    await writeDraft(id, "meta", input.meta, now);
-    if (input.email) {
-      await qRun(
-        "insert into email_providers (profile_id, provider, other_label, updated_at) values (?, ?, ?, ?)",
-        [id, input.email.provider, input.email.otherLabel, now],
-      );
-      await writeDraft(id, "email", input.email, now);
-    }
-  });
-  return publicProfile(await requireProfileRow(id));
+  }
+  throw new AppError(409, "Não foi possível reservar o número do registro. Tente de novo.");
 }
 
 export async function updateProfile(id: string, input: ProfileUpdate): Promise<ProfilePublic> {
@@ -256,26 +269,11 @@ export async function updateProfile(id: string, input: ProfileUpdate): Promise<P
   const status = commitStatus(statusOf(existing.status), input.status);
   const now = new Date().toISOString();
   await withTx(async () => {
-    try {
-      await qRun(
-        `update profiles set record_number = ?, display_name = ?, meta_profile_id = ?, profile_url = ?, status = ?,
-         responsible = ?, notes = ?, updated_at = ? where id = ?`,
-        [
-          input.recordNumber,
-          input.displayName,
-          input.metaProfileId,
-          input.profileUrl,
-          status,
-          input.responsible,
-          input.notes,
-          now,
-          id,
-        ],
-      );
-    } catch (error) {
-      if (isUnique(error)) throw new AppError(409, "Já existe um perfil com esse número.");
-      throw error;
-    }
+    await qRun(
+      `update profiles set display_name = ?, meta_profile_id = ?, profile_url = ?, status = ?,
+       responsible = ?, notes = ?, updated_at = ? where id = ?`,
+      [input.displayName, input.metaProfileId, input.profileUrl, status, input.responsible, input.notes, now, id],
+    );
     await replaceProfileLinks(id, input.bmIds);
   });
   return publicProfile(await requireProfileRow(id));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { STATUSES, type Status } from "@/lib/constants";
+import { STATUSES, isStatus, type Status, type StoredStatus } from "@/lib/constants";
 
 export function StatusSelect({
   value,
@@ -9,7 +9,7 @@ export function StatusSelect({
   disabled,
   onChange,
 }: {
-  value: Status;
+  value: StoredStatus;
   label: string;
   disabled?: boolean;
   onChange: (status: Status) => Promise<void>;
@@ -45,6 +45,11 @@ export function StatusSelect({
           }
         }}
       >
+        {isStatus(current) ? null : (
+          <option value={current} disabled>
+            {current}
+          </option>
+        )}
         {STATUSES.map((status) => (
           <option key={status} value={status}>
             {busy && status === current ? "Salvando…" : status}

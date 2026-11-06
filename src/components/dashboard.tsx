@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Status } from "@/lib/constants";
+import { STATUSES, type Status } from "@/lib/constants";
 import { formatDateTime, profileLabel } from "@/lib/format";
 import { summarize } from "@/lib/summary";
 import type { BmPublic, Inventory, ProfilePublic } from "@/lib/types";
@@ -184,10 +184,11 @@ export function Dashboard({ initial, csrfToken }: { initial: Inventory; csrfToke
           <span>Status</span>
           <select value={status} onChange={(event) => setStatus(event.target.value as Status | "todos")}>
             <option value="todos">Todos</option>
-            <option>Ativo</option>
-            <option>Offline</option>
-            <option>Restrito</option>
-            <option>Em análise</option>
+            {STATUSES.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
         </label>
       </div>

@@ -1,17 +1,18 @@
 import { randomUUID } from "crypto";
-import { SECRET_FIELDS, STATUSES, type EmailProvider, type SecretField, type Status } from "./constants";
+import { SECRET_FIELDS, isStatus, isStoredStatus, type EmailProvider, type SecretField, type Status, type StoredStatus } from "./constants";
 import { decryptField, encryptField, fieldAad, loadDataKey, vaultStatus } from "./crypto-box";
 import { AppError } from "./errors";
 import { qAll, qGet, qRun, withTx, type SqlRow, type SqlValue } from "./sql";
 import type {
   BmInput,
   BmPublic,
+  BmUpdate,
   CreateProfileInput,
   EmailAccessState,
   Inventory,
   ProfileDetail,
-  ProfileInput,
   ProfilePublic,
+  ProfileUpdate,
   SecretDraft,
   SecretPatch,
   SecretPresence,
@@ -35,9 +36,14 @@ function integer(value: SqlValue | undefined): number {
   throw new AppError(500, "Não foi possível concluir. Tente de novo.");
 }
 
-function statusOf(value: SqlValue | undefined): Status {
-  if (typeof value === "string" && (STATUSES as readonly string[]).includes(value)) return value as Status;
+function statusOf(value: SqlValue | undefined): StoredStatus {
+  if (typeof value === "string" && isStoredStatus(value)) return value;
   throw new AppError(500, "Não foi possível concluir. Tente de novo.");
+}
+
+function commitStatus(existing: StoredStatus, next: StoredStatus): StoredStatus {
+  if (isStatus(next) || next === existing) return next;
+  throw new AppError(400, "Escolha um status: Ativo ou Restrito.");
 }
 
 function isUnique(error: unknown): boolean {
@@ -245,8 +251,9 @@ export async function createProfile(input: CreateProfileInput): Promise<ProfileP
   return publicProfile(await requireProfileRow(id));
 }
 
-export async function updateProfile(id: string, input: ProfileInput): Promise<ProfilePublic> {
-  await requireProfileRow(id);
+export async function updateProfile(id: string, input: ProfileUpdate): Promise<ProfilePublic> {
+  const existing = await requireProfileRow(id);
+  const status = commitStatus(statusOf(existing.status), input.status);
   const now = new Date().toISOString();
   await withTx(async () => {
     try {
@@ -258,7 +265,7 @@ export async function updateProfile(id: string, input: ProfileInput): Promise<Pr
           input.displayName,
           input.metaProfileId,
           input.profileUrl,
-          input.status,
+          status,
           input.responsible,
           input.notes,
           now,
@@ -300,14 +307,15 @@ export async function createBm(input: BmInput): Promise<BmPublic> {
   return bmFrom(row, await profileIdsFor(id));
 }
 
-export async function updateBm(id: string, input: BmInput): Promise<BmPublic> {
-  await requireBmRow(id);
+export async function updateBm(id: string, input: BmUpdate): Promise<BmPublic> {
+  const existing = await requireBmRow(id);
+  const status = commitStatus(statusOf(existing.status), input.status);
   const now = new Date().toISOString();
   await withTx(async () => {
     try {
       await qRun(
         "update bms set name = ?, meta_bm_id = ?, status = ?, responsible = ?, notes = ?, updated_at = ? where id = ?",
-        [input.name, input.metaBmId, input.status, input.responsible, input.notes, now, id],
+        [input.name, input.metaBmId, status, input.responsible, input.notes, now, id],
       );
     } catch (error) {
       if (isUnique(error)) throw new AppError(409, "Já existe uma BM com esse ID da Meta.");

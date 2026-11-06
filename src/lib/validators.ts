@@ -1,17 +1,21 @@
 import {
   EMAIL_PROVIDERS,
+  LEGACY_STATUSES,
   SECRET_FIELDS,
   STATUSES,
   type AccessService,
   type EmailProvider,
   type SecretField,
   type Status,
+  type StoredStatus,
 } from "./constants";
 import type {
   BmInput,
+  BmUpdate,
   CreateProfileInput,
   EmailDraft,
   ProfileInput,
+  ProfileUpdate,
   SecretDraft,
   SecretPatch,
 } from "./types";
@@ -50,11 +54,22 @@ function rejectTopLevelSecrets(record: Record<string, unknown>): Parsed<never> |
   return null;
 }
 
-export function parseStatus(value: unknown): Parsed<Status> {
+const STATUS_MESSAGE = "Escolha um status: Ativo ou Restrito.";
+
+function parseStatusValue(value: unknown, allowLegacy: boolean): Parsed<StoredStatus> {
   if (typeof value === "string" && (STATUSES as readonly string[]).includes(value)) {
     return { ok: true, value: value as Status };
   }
-  return fail("Escolha um status: Ativo, Offline, Restrito ou Em análise.");
+  if (allowLegacy && typeof value === "string" && (LEGACY_STATUSES as readonly string[]).includes(value)) {
+    return { ok: true, value: value as StoredStatus };
+  }
+  return fail(STATUS_MESSAGE);
+}
+
+export function parseStatus(value: unknown): Parsed<Status> {
+  const parsed = parseStatusValue(value, false);
+  if (!parsed.ok) return parsed;
+  return { ok: true, value: parsed.value as Status };
 }
 
 export function parseRecordNumber(value: unknown): Parsed<number> {
@@ -133,7 +148,9 @@ function parseIdList(value: unknown, label: string): Parsed<string[]> {
   return { ok: true, value: ids };
 }
 
-function parseProfileFields(record: Record<string, unknown>): Parsed<ProfileInput> {
+function parseProfileFields(record: Record<string, unknown>): Parsed<ProfileInput>;
+function parseProfileFields(record: Record<string, unknown>, allowLegacy: true): Parsed<ProfileUpdate>;
+function parseProfileFields(record: Record<string, unknown>, allowLegacy = false): Parsed<ProfileInput | ProfileUpdate> {
   const recordNumber = parseRecordNumber(record.recordNumber);
   if (!recordNumber.ok) return recordNumber;
   const displayName = parseLine(record.displayName, "O nome", 120, false);
@@ -142,7 +159,7 @@ function parseProfileFields(record: Record<string, unknown>): Parsed<ProfileInpu
   if (!metaProfileId.ok) return metaProfileId;
   const profileUrl = parseHttpsUrl(record.profileUrl);
   if (!profileUrl.ok) return profileUrl;
-  const status = parseStatus(record.status);
+  const status = parseStatusValue(record.status, allowLegacy);
   if (!status.ok) return status;
   const responsible = parseLine(record.responsible, "O responsável", 120, false);
   if (!responsible.ok) return responsible;
@@ -165,14 +182,14 @@ function parseProfileFields(record: Record<string, unknown>): Parsed<ProfileInpu
   };
 }
 
-export function parseProfileInput(body: unknown): Parsed<ProfileInput> {
+export function parseProfileInput(body: unknown): Parsed<ProfileUpdate> {
   if (!isRecord(body)) return fail("Dados inválidos.");
   if ("meta" in body || "email" in body) {
     return fail("Envie o acesso pelo bloco correspondente, separado dos dados do perfil.");
   }
   const banned = rejectTopLevelSecrets(body);
   if (banned) return banned;
-  return parseProfileFields(body);
+  return parseProfileFields(body, true);
 }
 
 function parseUsername(value: unknown): Parsed<string | undefined> {
@@ -343,7 +360,9 @@ export function parseReveal(body: unknown): Parsed<{ service: AccessService; fie
   return { ok: true, value: { service: body.service, field: body.field as SecretField } };
 }
 
-export function parseBmInput(body: unknown): Parsed<BmInput> {
+export function parseBmInput(body: unknown): Parsed<BmInput>;
+export function parseBmInput(body: unknown, mode: "update"): Parsed<BmUpdate>;
+export function parseBmInput(body: unknown, mode: "create" | "update" = "create"): Parsed<BmInput | BmUpdate> {
   if (!isRecord(body)) return fail("Dados inválidos.");
   const banned = rejectTopLevelSecrets(body);
   if (banned) return banned;
@@ -351,7 +370,7 @@ export function parseBmInput(body: unknown): Parsed<BmInput> {
   if (!name.ok) return name;
   const metaBmId = parseDigits(body.metaBmId, "o ID da BM na Meta", true);
   if (!metaBmId.ok || !metaBmId.value) return fail("Informe o ID da BM na Meta.");
-  const status = parseStatus(body.status);
+  const status = parseStatusValue(body.status, mode === "update");
   if (!status.ok) return status;
   const responsible = parseLine(body.responsible, "O responsável", 120, false);
   if (!responsible.ok) return responsible;

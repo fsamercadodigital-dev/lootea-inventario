@@ -1,13 +1,12 @@
-import type { Status } from "./constants";
-import { STATUSES } from "./constants";
+import { isStatus, type Status, type StoredStatus } from "./constants";
 import type { BmPublic, ProfilePublic } from "./types";
 
 export type StatusCounts = { total: number } & Record<Status, number>;
 
-function counts(items: { status: Status }[]): StatusCounts {
-  const base = { total: items.length, Ativo: 0, Offline: 0, Restrito: 0, "Em análise": 0 };
+function counts(items: { status: StoredStatus }[]): StatusCounts {
+  const base = { total: items.length, Ativo: 0, Restrito: 0 };
   for (const item of items) {
-    if ((STATUSES as readonly string[]).includes(item.status)) base[item.status] += 1;
+    if (isStatus(item.status)) base[item.status] += 1;
   }
   return base;
 }

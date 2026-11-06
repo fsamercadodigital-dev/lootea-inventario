@@ -16,7 +16,7 @@ export const PATCH = withRoute(async (request, context) => {
     if (!status.ok) throw new AppError(400, status.message);
     return json({ bm: await setBmStatus(id, status.value) });
   }
-  const parsed = parseBmInput(body);
+  const parsed = parseBmInput(body, "update");
   if (!parsed.ok) throw new AppError(400, parsed.message);
   return json({ bm: await updateBm(id, parsed.value) });
 });

@@ -71,6 +71,10 @@ test("validadores rejeitam link inseguro e ID numérico", () => {
   const textId = parseBmInput({ name: "BM", metaBmId: bmId, status: "Ativo" });
   assert.equal(textId.ok, true);
   if (textId.ok) assert.equal(textId.value.metaBmId, bmId);
+  assert.equal(parseBmInput({ name: "BM", metaBmId: bmId, status: "Offline" }).ok, false);
+  assert.equal(parseBmInput({ name: "BM", metaBmId: bmId, status: "Em análise" }).ok, false);
+  assert.equal(parseCreateProfile({ recordNumber: 3, status: "Offline" }).ok, false);
+  assert.equal(parseCreateProfile({ recordNumber: 3, status: "Em análise" }).ok, false);
   const missingProvider = parseCreateProfile({
     recordNumber: 16,
     displayName: null,
@@ -286,6 +290,38 @@ test("persistência, sessão e cofre", async () => {
   const listBody = JSON.parse(listText) as { profiles: { status: string; recordNumber: number }[] };
   assert.equal(listBody.profiles[0]?.status, "Restrito");
   assert.equal(listBody.profiles[0]?.recordNumber, 16);
+
+  await dbMod.qRun("update profiles set status = ? where id = ?", ["Offline", profileId]);
+  await dbMod.qRun("update bms set status = ? where meta_bm_id = ?", ["Em análise", bmId]);
+  const legacy = await inventoryRoute.GET(call("/api/inventory", auth), ctx);
+  assert.equal(legacy.status, 200);
+  const legacyBody = (await legacy.json()) as { profiles: { status: string }[]; bms: { status: string }[] };
+  assert.equal(legacyBody.profiles[0]?.status, "Offline");
+  assert.equal(legacyBody.bms[0]?.status, "Em análise");
+
+  const rejectedStatus = await profileRoute.PATCH(
+    call(`/api/profiles/${profileId}`, { method: "PATCH", ...auth, json: { status: "Offline" } }),
+    profileCtx,
+  );
+  assert.equal(rejectedStatus.status, 400);
+
+  const echoed = await profileRoute.PATCH(
+    call(`/api/profiles/${profileId}`, {
+      method: "PATCH",
+      ...auth,
+      json: { recordNumber: 16, displayName: null, status: "Offline", bmIds: [] },
+    }),
+    profileCtx,
+  );
+  assert.equal(echoed.status, 200);
+  assert.equal(((await echoed.json()) as { profile: { status: string } }).profile.status, "Offline");
+
+  const switched = await profileRoute.PATCH(
+    call(`/api/profiles/${profileId}`, { method: "PATCH", ...auth, json: { status: "Ativo" } }),
+    profileCtx,
+  );
+  assert.equal(switched.status, 200);
+  assert.equal(((await switched.json()) as { profile: { status: string } }).profile.status, "Ativo");
 
   await dbMod.closeDb();
 });

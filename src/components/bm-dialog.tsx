@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { STATUSES, type Status } from "@/lib/constants";
+import { STATUSES, isStatus, type Status, type StoredStatus } from "@/lib/constants";
 import { profileLabel } from "@/lib/format";
 import type { BmPublic, ProfilePublic } from "@/lib/types";
 import { parseBmInput } from "@/lib/validators";
@@ -36,7 +36,7 @@ export function BmDialog({
   const initial = bm ?? emptyBm;
   const [name, setName] = useState(initial.name);
   const [metaBmId, setMetaBmId] = useState(initial.metaBmId);
-  const [status, setStatus] = useState<Status>(initial.status);
+  const [status, setStatus] = useState<StoredStatus>(initial.status);
   const [responsible, setResponsible] = useState(initial.responsible ?? "");
   const [notes, setNotes] = useState(initial.notes ?? "");
   const [profileIds, setProfileIds] = useState<string[]>(initial.profileIds);
@@ -50,7 +50,9 @@ export function BmDialog({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    const parsed = parseBmInput({ name, metaBmId, status, responsible, notes, profileIds });
+    const parsed = bm
+      ? parseBmInput({ name, metaBmId, status, responsible, notes, profileIds }, "update")
+      : parseBmInput({ name, metaBmId, status: status as Status, responsible, notes, profileIds });
     if (!parsed.ok) {
       setError(parsed.message);
       return;
@@ -91,6 +93,11 @@ export function BmDialog({
         <label className="field">
           <span>Status manual</span>
           <select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
+            {isStatus(status) ? null : (
+              <option value={status} disabled>
+                {status}
+              </option>
+            )}
             {STATUSES.map((item) => (
               <option key={item}>{item}</option>
             ))}
